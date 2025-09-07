@@ -1,0 +1,2890 @@
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+
+Low-rank matrix and tensor approximations: advancing efficiency of
+machine-learning interatomic potentials
+Igor Vorotnikov,1 Fedor Romashov,1 Nikita Rybin,2, 3 Maxim Rakhuba,1 and Ivan S. Novikov1, a)
+
+1)HSE University, Faculty of Computer Science, Pokrovsky boulevard 11, Moscow, 109028,
+Russian Federation
+2)Skolkovo Institute of Science and Technology, Skolkovo Innovation Center, Bolshoy boulevard 30, Moscow, 143026,
+Russian Federation
+3)Digital Materials LLC, Odintsovo, Kutuzovskaya str. 4A Moscow region, 143001, Russian Federation
+
+(Dated: September 5, 2025)
+
+Machine-learning interatomic potentials (MLIPs) have become a mainstay in computationally-guided materials science,
+surpassing traditional force fields due to their flexible functional form and superior accuracy in reproducing physical
+properties of materials. This flexibility is achieved through mathematically-rigorous basis sets that describe interatomic
+interactions within a local atomic environment. The number of parameters in these basis sets influences both the size of
+the training dataset required and the computational speed of the MLIP. Consequently, compressing MLIPs by reducing
+the number of parameters is a promising route to more efficient simulations. In this work, we use low-rank matrix
+and tensor factorizations under fixed-rank constraints to achieve this compression. In addition, we demonstrate that an
+algorithm with automatic rank augmentation helps to find a deeper local minimum of the fitted potential. The method-
+ology is verified using the Moment Tensor Potential (MTP) model and benchmarked on multi-component systems: a
+Mo-Nb-Ta-W medium-entropy alloy, molten LiF-NaF-KF, and a glycine molecular crystal. The proposed approach
+achieves up to 50% compression without any loss of MTP accuracy and can be applied to compress other MLIPs.
+
+arXiv:2509.04440v1  [physics.chem-ph]  4 Sep 2025
+
+meV/atom) were obtained on these training sets. However,
+these models have about 3 million parameters each. There is a
+very well-known fact that for reaching high accuracy it is nec-
+essary to have many parameters in machine learning models,
+but they require a huge amount of data to avoid overfitting.
+Therefore, methods for compression, or, reducing parameters
+in MLIPs enables for preserving accuracy of original (non-
+compressed) MLIPs become a promising tool and a key to
+simulate atomistic systems more efficiently and to reduce a
+number of expensive DFT calculations.
+
+I.
+INTRODUCTION
+
+Nowadays,
+machine-learning
+interatomic
+potentials
+(MLIPs) are ubiquitously used in computational materials
+science1. The flexible functional form of MLIPs enables to
+approximate the potential energy surface on which atoms
+move with arbitrary accuracy2.
+The potentials are usually
+parametrized on the training data obtained in highly accurate,
+but computationally demanding, first principles calculations
+performed in the scope of density functional theory (DFT).
+Trained MLIPs reproduce physical behavior of materials
+and overcome the length- and time-scale limitations of
+computationally expensive DFT calculations, which made
+MLIPs an attractive tool in atomistic modeling.
+Many MLIPs have been developed since 2007. The first of
+them are Neural Network Potential (NNP)3 based on artificial
+neural networks, Gaussian Approximation Potential (GAP)4
+
+The low-rank factorization approach provides an efficient
+method for compressing matrices and tensors. This technique
+has found significant utility in machine learning, especially in
+deep learning, where it is applied to decompose large weight
+matrices and tensors to reduce model complexity15–19. For ex-
+ample, Ref.19 recently used low-rank matrix decomposition to
+pre-train a large language model, achieving a 54% reduction
+in memory usage while also improving its perplexity score.
+
+based on Gaussian processes, and the polynomial-like Spec-
+tral Neighbor Analysis Potential (SNAP)5 based on spherical
+harmonics and Moment Tensor Potential (MTP)6 based on the
+tensors of inertia of atomistic environments. Most of recently
+developed MLIPs are based on neural networks7–10 and some
+of them are polynomial-like11,12. In Ref.13,14, success of ap-
+plying MLIPs to materials science problems and challenges in
+their future development are discussed.
+One of the drawbacks of modern MLIPs is the large num-
+ber of parameters in their functional form. For example, in
+Ref.10, three message-passing MLIPs — BOTNet, NequIP9,
+and MACE10 — were fitted on the rMD17, 3BPA, and AcAc
+benchmark datasets, including about several hundred thou-
+sand atomic structures.
+Low fitting errors (up to several
+
+Inspired by the success of applying low-rank approxima-
+tions to neural networks, in this study, we introduce and apply
+methods for compression of MLIPs. In this framework, low-
+rank matrix and tensor decompositions (or factorizations)20–22
+
+are used to reduce a number of MLIP parameters without los-
+ing accuracy of its fitting. We divide the methods for com-
+pression of MLIPs into two types. The first type is optimiza-
+tion under fixed-rank constraints. We apply fixed-rank matrix
+and tensor factorizations to MLIP parameters and reduce their
+number. We explore both standard optimization techniques
+for the parameters of fixed-rank matrix/tensor factorization
+and the Riemannian optimization23–25 approach, which addi-
+tionally removes excessive parameters arising in rank factor-
+izations. The second type of methods proposed in this study
+is the rank augmentation method. Here, we start with a small
+rank during compressed MLIP fitting and increase it to a spe-
+cific value. Once this value is reached, we continue the fitting
+
+a)Electronic mail: ivan.novikov0590@gmail.com
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+2
+
+The best rank-r approximation of a matrix A with respect to
+the Frobenius norm is given by the so-called truncated SVD:
+
+with this rank. We use this method to fit MLIP compressed
+with matrix factorization.
+In this work, our aim is to verify that compressed MLIPs
+are as accurate as the base (non-compressed) ones. Hence,
+after compression, we perform benchmarks on three systems,
+which were previously studied: the Mo-Nb-Ta-W medium-
+entropy alloy12, the molten salt mixture LiF-NaF-KF26, and
+glycine27. These systems were chosen not only because the
+datasets are available, but because MLIPs are, in principle,
+frequently used to model properties of alloys28,29, molten
+salts30, and molecular crystals. In the former case, particularly
+to accelerate the search for the most energetically favorable
+polymorphs31–34. The success of such calculations is highly
+dependent on the correct energy ranking of the polymorphs35.
+Molecular crystals typically exhibit complex polymorphic en-
+ergy landscapes, with numerous structures located within an
+energy window of a few kilojoules per mole36. Consequently,
+a model should have DFT accuracy to reliably range poly-
+morphs, which is a good test for compressed MLIP.
+We test our methods using Moment Tensor Potential (MTP)
+as an example model, which is frequently used in compu-
+tational studies (see, e.g., Refs.12,26,27). This MLIP has two
+types of parameters to fit: linear and radial. The radial param-
+eters are tensors of the fourth order, and we take advantage of
+tensor-based decompositions to compress these radial param-
+eters. We demonstrate that the algorithms used enable both
+reduction of the number of MTP parameters and improvement
+of accuracy of MTP fitting for the three systems considered.
+Without loss of generality, the established methodology can
+be used to compress other MLIPs, for example, ACE37.
+
+Ar = UrΣrV ⊤
+r ,
+
+where Ur and Vr contain the first r columns of U and V, re-
+spectively, and Σr is the leading principal r×r submatrix of Σ.
+By U⊥
+r , V ⊥
+r
+we denote matrices that contain all the columns
+of U, V besides the leading r. In other words,
+
+U = [ Ur
+|{z}
+r
+U⊥
+r
+|{z}
+m−r
+
+],
+V = [ Vr
+|{z}
+r
+V ⊥
+r
+|{z}
+n−r
+
+].
+(1)
+
+We also use the notation
+
+Ar = SVDr(A).
+
+By a d-dimensional tensor, we imply a multidimensional
+array:
+
+A = {ai1...id}n1,...,nd
+i1,...,id=1 ∈Rn1×...×nd.
+
+We denote the outer (tensor) product of two tensors by “◦”.
+An outer product of u1 ∈Rn1,...,ud ∈Rnd is
+
+A = u1 ◦...◦ud ∈Rn1×...×nd
+
+with the entries
+
+ai1...id = (u1)i1 ·...·(ud)id.
+
+For k equal multipliers, we use the notation
+
+u◦k = u◦···◦u.
+
+II.
+METHODOLOGY
+
+The reshape operation of A ∈Rn1×···×nd has the following
+form:
+
+A.
+Notations
+
+reshape(A,[m1,...,mk]) = B ∈Rm1×···×mk,
+
+This subsection defines the basic mathematical notation and
+operations used in this work.
+General rank matrix factorization of A ∈Rm×n, also known
+as the skeleton decomposition, is read as
+
+where ∏d
+i=1 ni = ∏k
+j=1 m j, reorders the elements of A into B
+such that the flattened underlying array remains identical un-
+der lexicographical (row-major) ordering of indices.
+Finally, by orthogonal projector P we imply a matrix, satis-
+fying P2 = P and P⊤= P.
+
+A = BC,
+B ∈Rm×k,
+C ∈Rk×n,
+
+where k ≤min(m,n) is the rank of A. This factorization is not
+unique, and additional constraints, such as the orthogonality
+of the columns in B and C may be imposed. As a result, the
+skeleton decomposition can always be reduced to the form of
+a singular value decomposition (SVD), defined as:
+
+B.
+Moment tensor potential
+
+In this subsection we describe a machine-learning inter-
+atomic potential (MLIP) compressed in the study. Moment
+Tensor Potential (MTP) is a MLIP that was originally pro-
+posed for single-component materials6 and generalized to
+multi-component materials38.
+Energy of the system in the case of MTP usage EMTP is
+the sum of contributions V MTP(ni) of atomic neighborhoods
+ni for N atoms
+
+A = UΣV ⊤,
+
+where U ∈Rm×k and V ∈Rn×k are matrices with orthonor-
+mal columns, and Σ ∈Rk×k is a diagonal matrix with singular
+values σ1 ≥σ2 ≥··· ≥σk > 0 on the diagonal.
+The inner product of two matrices is ⟨A,B⟩= tr(A⊤B) and
+the corresponding induced norm, known as the Frobenius
+norm, has the following form:
+
+EMTP =
+N
+∑
+i=1
+V MTP(ni).
+(2)
+
+∥A∥F =
+p
+
+⟨A,A⟩.
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+3
+
+Θ = (Ξ,C) and the MTP energy of a structure is denoted by
+EMTP = E(Θ) = E(Ξ,C). We further refer to this MTP as the
+base MTP.
+A drawback of the functional form of the base MTP is the
+radial parameters c(β)
+µ,zi,z j. The number of these parameters
+is N2
+TNf Nb, i.e., it scales quadratically with the number of
+atomic types NT in a system. In this work, we demonstrate
+that a certain percentage of these parameters is redundant and
+that the same or even smaller training errors can be achieved
+with the reduced number of them. To reduce the number of
+radial parameters we use two techniques.
+The first one is
+based on the so-called low-rank matrix and tensor approxi-
+mations yielding a low-rank MTP. The second technique is
+the so-called Riemannian optimization. We describe them in
+the following subsections.
+
+Each neighborhood is a tuple
+
+ni = ({ri1,zi,z1},...,{ri j,zi,zj},...,{riNnbh,zi,zNnbh}),
+
+where rij are relative atomic positions, zi, zj are the types
+of central and neighboring atoms, and Nnbh is the number
+of atoms in neighborhood. We denote the number of atomic
+types in a system by NT. Each contribution V MTP(ni) in the
+potential energy EMTP expands through a set of basis func-
+tions
+
+V MTP(ni) = ∑
+α
+ξαBα(ni),
+(3)
+
+where Bα are the MTP basis functions, Ξ = {ξα} are the lin-
+ear parameters to be found. To define the functional form of
+the MTP basis functions we introduce the so-called moment
+tensor descriptors:
+
+C.
+Matrix and tensor factorization of radial parameters
+
+Nnbh
+∑
+j=1
+fµ(|ri j|,zi,zj)r◦ν
+i j .
+(4)
+
+Mµ,ν(ni) =
+
+Here we describe two ways for reducing the number of the
+radial parameters C ∈RNT ×NT ×Nf ×Nb. These approaches are
+matrix factorization in the form of the skeleton decomposi-
+tion of the reshaped radial parameters and factorization of the
+tensor of the radial parameters in the form of the matrix prod-
+uct state (MPS)39, which is also known under the name tensor
+train (TT) decomposition40 in applied linear algebra. Notably,
+low-rank tensor factorizations have also been used in the con-
+text of Hartree-Fock and DFT calculations for compressing
+coefficient tensors41–43.
+Matrix factorization (MF) approximates a given matrix A ∈
+Rm×n by the product of two smaller matrices:
+
+The descriptor consists of the angular part r◦ν
+i j , which is the
+tensor of ν-th order, and the radial part fµ(|ri j|,zi,z j) of the
+following form:
+
+Nb
+∑
+β=1
+c(β)
+µ,zi,zjT (β)(|ri j|)(Rcut −|ri j|)2.
+(5)
+
+fµ(|rij|,zi,z j) =
+
+Here µ is the number of the radial function fµ, C = {c(β)
+µ,zi,zj}
+are the radial parameters to be found, T (β)(|ri j|) are polyno-
+mial functions β = 1,...,Nb (where Nb is the number of poly-
+nomial functions), and the term (Rcut −|ri j|)2 is introduced to
+ensure smoothness with respect to the atoms leaving and en-
+tering the sphere with the cutoff radius Rcut. We denote the
+number of radial functions by Nf .
+By definition, the MTP basis function Bα is a contraction
+of one or more moment tensor descriptors, yielding a scalar.
+To construct the basis functions Bα and determine a particular
+functional form of MTP, we define the so-called level of the
+moment tensor descriptor:
+
+A ≈UV ⊤,
+
+where U ∈Rm×r and V ∈Rn×r, and r denotes the chosen rank.
+To use a matrix factorization, the four-dimensional tensor
+c(β)
+µ,zi,z j is first “unfolded” into a matrix
+
+bC = reshape
+ 
+C, [NT ·NT,Nf ·Nb]
+
+∈R(N2
+T )×(Nf Nb),
+
+by merging the first two indices into one composite index of
+length N2
+T and the last two into one of length Nf Nb. We then
+approximate the matrix of radial parameters bC ≈U V⊤. The
+base MTP contains N2
+TNf Nb radial parameters, and its factor-
+ized representation stores only r(N2
+T + Nf Nb) radial parame-
+ters.
+Tensor factorization (TF) approach is based on MPS/TT-
+decomposition. TT format expresses C as a contraction of
+four third-order core tensors:
+
+levMµ,ν = 2+4µ +ν.
+(6)
+
+We also define the level of the MTP basis function:
+
+levBα = lev
+P
+∏
+p=1
+Mµp,νp
+|
+{z
+}
+scalar
+
+=
+P
+∑
+p=1
+(2+4µp +νp).
+(7)
+
+A set of MTP basis functions and, thus, a particular func-
+tional form of MTP depends on the maximum level, levmax,
+which we also call the level of MTP. In the set of MTP ba-
+sis functions, we include only those with levBα ≤levmax.
+The level of MTP determines the number of linear parame-
+ters Ξ and the number of radial functions Nf as the moment
+tensor descriptors depend on the number of the radial func-
+tion. The set of MTP parameters to be found is denoted by
+
+G(k) ∈Rrk−1×nk×rk
+for k = 1,...,4,
+r0 = r4 = 1,
+
+so that:
+
+r3
+∑
+α3=1
+G(1)
+1,zi,α1 G(2)
+α1,zj,α2 G(3)
+α2,µ,α3 G(4)
+α3,β,1.
+
+r1
+∑
+α1=1
+
+r2
+∑
+α2=1
+
+c(β)
+zi,z j,µ =
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+4
+
+The derivatives of the loss function are calculated with respect
+to these parameters Ξ,U,V as follows:
+
+The total number of the radial parameters in the TT format
+is given by:
+
+∂bC
+V,
+∂L
+∂V =
+ ∂L
+
+∂L
+∂Ξ = ∂L
+
+∂Ξ,
+∂L
+∂U = ∂L
+
+⊤
+U.
+
+4
+∑
+k=1
+rk−1nkrk = r0NTr1+r1NTr2+r2Nf r3+r3Nbr4,r0 = r4 = 1,
+
+∂bC
+
+As it could be seen, we use the original derivative ∂L/∂bC to
+calculate the new derivatives ∂L/∂U and ∂L/∂V. We further
+refer to MTP based on the described matrix factorization as
+the MF MTP or simply MF for short.
+b.
+R-MF optimization.
+Let us discuss the so-called Rie-
+mannian version of matrix factorization, which we abbreviate
+as R-MF. It is important to note that the parameters (U,V) are
+not unique. This is because many different pairs of matrices
+(U,V) can produce the same product UV ⊤. For example, for
+any invertible r ×r matrix S, we can define new matrices:
+
+i.e., if r1 = r2 = r3 = r then we have (NT +Nf )r2+(NT +Nb)r
+radial parameters instead of N2
+TNf Nb in the base MTP. The
+choice of TT-ranks {r1,r2,r3} governs the trade-off between
+representational flexibility and compactness.
+
+D.
+Fitting the potential
+
+We begin this subsection by formalizing the loss function.
+Subsequently, we present a discussion of the optimization
+techniques employed to minimize this function subject to low-
+rank constraints, considering two distinct scenarios. We first
+describe optimization under a fixed-rank constraint, followed
+by a method to gradually increase the rank.
+
+eU = US−1,
+eV ⊤= SV ⊤,
+
+and the product remains unchanged:
+eU eV ⊤= UV ⊤.
+This
+means that the same solution can be represented in an infinite
+number of ways, which can affect the optimization problem.
+To avoid this issue, we can optimize directly over the set of all
+fixed-rank matrices:
+
+1.
+Loss function
+
+Mr = {X ∈Rm×n : rank(X) = r}.
+
+To find optimal parameters ¯Θ of MTP, we solve the follow-
+ing optimization problem (minimization of the loss function):
+
+The set Mr constitutes a smooth manifold. Its local lineariza-
+tion at a point X ∈Mr is the tangent space TXMr. By equip-
+ping each tangent space with a natural inner product ⟨·,·⟩the
+manifold Mr becomes a Riemannian manifold. Riemannian
+optimization leverages this geometry to find the minimum of a
+function on Mr, effectively ignoring the unnecessary degrees
+of freedom in the factors U and V.
+While classical optimization involves moving in a straight
+line within a vector space, optimization on a Riemannian man-
+ifold Mr requires moving along the curved geometry of the
+constraint set. The process is generalized as follows: first,
+a search direction ξ is chosen within the so-called tangent
+space TXMr (local linearization of Mr) at the current point X.
+Since moving directly along this tangent vector would leave
+the manifold, a retraction operator RX is used to map the tan-
+gent vector ξ onto Mr:
+
+L(Θ) =
+K
+∑
+k=1
+
+h
+we
+ 
+Ek(Θ)−EDFT
+k
+2 +
+
+Nk
+∑
+i=1
+
+fi,k(Θ)−fDFT
+i,k
+2 +
+
+(8)
+
+wf
+
+6
+∑
+i=1
+
+σi,k(Θ)−σDFT
+i,k
+2i
+→min,
+
+ws
+
+where K is a number of configurations in the training set
+and Nk, k = 1,...,K is a number of atoms for each config-
+uration, EDFT
+k
+, fDFT
+i,k , and σDFT
+i,k
+are the DFT energies, forces,
+and stresses to which we fit the MTP energies Ek(Θ), forces
+fi,k(Θ), and stresses σi,k(Θ), thus optimizing the MTP param-
+eters Θ. The factors we, wf, and ws in (8) are non-negative
+weights which express the importance of energies, forces, and
+stresses with respect to each other.
+We find the optimal parameters ¯Θ numerically, using the
+iterative method to minimize the non-linear loss function, as
+is described further in this section.
+
+RX(ξ) = SVDr(X +ξ),
+
+see also Ref.44 for alternative retractions. The illustration of
+the concept is shown on Figure 1.
+We propose to compute the search direction ξ using a
+Riemannian Broyden–Fletcher–Goldfarb–Shanno (RBFGS)
+method25, adapted for matrix manifolds. A complete descrip-
+tion of the algorithm is provided in the supplementary mate-
+rial. For more details regarding the Riemannian optimization
+on matrix manifolds, see Ref.23.
+c.
+TF
+optimization.
+The
+tensor
+case
+is
+similar
+to
+MF,
+except
+that
+we
+minimize
+the
+loss
+function
+L(Ξ,G(1),G(2),G(3),G(4))
+with
+respect
+to
+all
+TT-cores
+G(k),k = 1,...,4 and linear parameters Ξ using the BFGS
+
+2.
+Optimization with a fixed-rank constraint
+
+a.
+MF optimization.
+When the rank is fixed, our goal is
+to minimize the loss function with respect to the factor matri-
+ces U and V with r columns:
+
+L
+ 
+Θ) = L
+ 
+Ξ, bC
+
+= L
+ 
+Ξ,UV ⊤
+≡L
+ 
+Ξ,U,V
+
+→min
+Ξ,U,V .
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+5
+
+L(Ξ,U,V), we perform the adaptive update steps if r < rmax,
+where we enrich our approximation with a gradient informa-
+tion. The augmented update steps sequentially increase the
+rank of the model.
+A similar approach was used, e.g., in
+Ref.45 for multidimensional linear systems. These steps are
+presented in detail in Algorithm 1. At each step, the model
+stores only r(N2
+T + Nf Nb) radial parameters in factors U and
+V. We refer to the MTP obtained with Algorithm 1 as the
+MFRA MTP.
+
+TxM
+
+x
+
+ξ
+
+R(x,ξ)
+
+M
+
+Algorithm 1: MFRA
+
+Input: Tensor C ∈RNT ×NT ×Nf ×Nb; initial rank rmin;
+maximum rank rmax; augmentation interval s; rank
+increment ∆r; loss L(Ξ, bC).
+Input: r ←rmin; U ∈R(N2
+T )×r, V ∈R(Nf Nb)×r initialized
+randomly.
+for k = 1,2,... do
+
+Figure 1: Illustration of the concepts of a tangent space TxM
+and a retraction R(x,ξ) for a smooth manifold M .
+
+algorithm. Gradients of the loss function with respect to each
+core are the following:
+
+Take one BFGS update on L(Ξ,U,V) = L(Ξ,UV T ) to
+refine U,V;
+if k mod s = 0 and r < rmax then
+
+Nf
+∑
+µ=1
+
+Nb
+∑
+β=1
+
+r3
+∑
+α3=1
+
+r2
+∑
+α2=1
+
+NT
+∑
+z j=1
+
+Form approximation bC ←UV ⊤;
+
+∂L
+
+∂L
+
+∂c(β)
+zi,z j,µ
+G(2)
+α1,z j,α2G(3)
+α2,µ,α3G(4)
+α3,β,1;
+
+∂G(1)
+1,zi,α1
+=
+
+Compute gradient G ←∂L
+
+∂bC
+∈R(N2
+T )×(Nf Nb);
+
+Compute SVD G ≈eU Σ eV ⊤;
+Extract top-∆r singular vectors:
+U∆←eU[:,: ∆r], V∆←eV[:,: ∆r], Σ∆←Σ[: ∆r,: ∆r];
+Use line search to find
+h = argminh′ L
+ 
+Ξ,UV ⊤+h′U∆Σ∆V ⊤
+∆
+
+;
+Increase rank:
+U ←[U
+ hU∆Σ1/2
+∆], V ←[V
+ V∆Σ1/2
+∆], r ←r +∆r;
+
+Nf
+∑
+µ=1
+
+Nb
+∑
+β=1
+
+r3
+∑
+α3=1
+
+NT
+∑
+zi=1
+
+∂L
+
+∂L
+
+∂c(β)
+zi,z j,µ
+G(1)
+1,zi,α1G(3)
+α2,µ,α3G(4)
+α3,β,1;
+
+∂G(2)
+α1,z j,α2
+=
+
+Nb
+∑
+β=1
+
+r1
+∑
+α1=1
+
+NT
+∑
+zi=1
+
+NT
+∑
+z j=1
+
+∂L
+
+∂L
+
+∂c(β)
+zi,z j,µ
+G(1)
+1,zi,α1G(2)
+α1,z j,α2G(4)
+α3,β,1;
+
+∂G(3)
+α2,µ,α3
+=
+
+Nf
+∑
+µ=1
+
+r1
+∑
+α1=1
+
+r2
+∑
+α2=1
+
+NT
+∑
+zi=1
+
+NT
+∑
+zj=1
+
+∂L
+
+∂L
+
+III.
+RESULTS AND DISCUSSION
+
+∂c(β)
+zi,z j,µ
+G(1)
+1,zi,α1G(2)
+α1,zj,α2G(3)
+α2,µ,α3.
+
+∂G(4)
+α3,β,1
+=
+
+A.
+Computational details
+
+We denote MTP in which the tensor of radial parameters
+is represented in TT-format by the TF MTP. The Rieman-
+nian version of TF is also possible, but we found that it was
+more computationally demanding than R-MF, while not giv-
+ing addition boosts in terms of quality of the optimal solution.
+Therefore, we fully omit this case in our work.
+
+We applied developed methods to three systems: the Mo-
+Nb-Ta-W medium-entropy alloy, the molten salt LiF-NaF-KF
+(FLiNaK) mixture, and different polymorphs of glycine. The
+training sets were taken from Refs.12,26,27. These data sets
+were calculated using the VASP package46 with the projector-
+augmented wave method47.
+The Perdew-Burke-Ernzerhof
+generalized gradient approximation (PBE)48 was used as the
+exchange–correlation functional, and the DFT-D3 method49
+
+3.
+Optimization with rank augmentation
+
+was utilized to account for the dispersion forces in the case
+of FLiNaK and glycine modeling. A brief description of the
+calculation parameters is given in Tabel I and details might be
+found in the aforementioned works.
+We trained an ensemble of five MTPs of each type: base,
+MF, R-MF, MFRA, and TF. We fixed the rank r for the cal-
+culations with MF, R-MF, and TF. For all calculations with
+MFRA, we took s = 80 and rmin = ∆r and increased the rank
+of the potential until we reached a predetermined r = rmax. We
+continued further calculations with this rank. We took Rcut = 5
+Å and Nb = 8 for all MTPs. The rest of details on choosing
+the optimal ranks are given in the next subsection.
+
+We observed that by gradually increasing the rank value,
+we are capable of finding better optima. Here, we describe
+an algorithm. Denote rmin,rmax,s,∆r by initial rank, maxi-
+mum rank, augmentation interval during BFGS iterations, or
+the number of BFGS steps conducted with the current rank,
+and rank increment, respectively. We randomly initialize
+
+U ∈R(N2
+T )×rmin,
+V ∈R(Nf Nb)×rmin,
+
+and start from r = rmin.
+After each of the s iterations of
+the BFGS algorithm applied to minimize the loss function
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+6
+
+14th and 18th levels trained on Mo-Nb-Ta-W and FLiNaK are
+given in Figures 3 and 4, respectively. We provide similar
+histograms for the MTPs of the 12th and 16th levels in sup-
+plementary material. We note that we trained MTPs only of
+the 20th level for glycine and provide the ranks and the num-
+ber of radial parameters for each MTP in Table II together
+with the fitting errors.
+
+Table I: Computational details on the generation of the
+training sets.
+
+System
+Level
+Cutoff,
+K-points grid
+Training set
+of theory
+eV
+size
+Mo-Nb-Ta-W PBE
+520
+4 × 4 × 4
+4983
+FLiNaK
+PBE+D3
+550
+Γ-point
+754
+glycine
+PBE+D3
+600
+Γ-point
+3127
+
+C.
+Loss functions and training errors
+
+In this subsection, we analyze the values of loss functions
+and fitting errors calculated with ensembles of different MTPs
+with the optimal ranks and with the compression of approxi-
+mately 50% (i.e., two times reduction) of the number of the
+radial parameters in the base MTP.
+The results of fitting of potentials on Mo-Nb-Ta-W are
+shown in Figures 5 and 6. In Figure 5 we observe the de-
+crease in loss functions, energy and force fitting errors with
+the increase of the level of all MTPs. We also see that all
+the compressed MTPs (MF, MFRA, R-MF, and TF) of the
+16th and 18th levels give higher accuracy, i.e., smaller loss
+functions, energy and force fitting errors than the base MTPs.
+However, for the MTPs of the 12th level, we conclude that the
+compressed MTPs give either worse (R-MF) or slightly lower
+(MF, TF, and MFRA) results compared to the base MTP. This
+effect can be related to the number of linear parameters and
+the complexity of MTP. There are 29 linear parameters and
+three radial functions in the MTP of the 12th level, and thus,
+all the radial parameters presented in the base MTP can be
+critical for accurate fitting of the compressed MTPs. How-
+ever, MTPs of the 16th and 18th levels have 92 and 163 linear
+parameters, respectively, and four radial functions for each.
+Therefore, the number of the radial parameters can be exces-
+sive and some of them are not necessary for an accurate fitting.
+In Figure 6 only the values for MF with the compression of
+50% became greater than the ones for MF with the optimal
+ranks. In general, the optimal ranks and the ranks related to
+the compression of 50% are close to each other (see Figures
+2 (a, b, c) and 3) for the potentials fitted on Mo-Nb-Ta-W,
+and therefore the results demonstrated in Figures 5 and 6 are
+close to each other.
+In Figures 7 and 8 we see the values of the loss functions
+and the fitting errors for FLiNaK. From Figure 7 we conclude
+that the MF, MFRA, and TF MTPs of all levels with the op-
+timal ranks give smaller loss functions and force errors than
+the base MTPs. However, R-MF demonstrates values similar
+to the base MTPs and gives greater force fitting error and loss
+function for the 12th level. Energy fitting errors are statisti-
+cally similar for all models except for R-MF of the 12th and
+16th levels, yielding the worst energy errors. In Figure 8 we
+observe similar loss functions and energy errors for all MTPs
+excluding R-MF of the 12th and 16th levels, again demon-
+strating the worst accuracy among all the models considered.
+At the same time, force errors are still lower for MF, MFRA,
+and TF of levels greater than 12 compared to the base MTP
+even for a two times reduced number of radial parameters.
+Finally, we fitted ensembles of different types of 20th-level
+
+We used the weights we = 1 eV−2, w f = 0.01 (eV/Å)−2,
+and ws = 0 eV−2 for the fitting on the Mo-Nb-Ta-W and FLi-
+NaK training sets, in the case of glycine we also took into ac-
+count stresses with ws = 0.001 eV−2, since in the latter case
+we had to perform structural relaxation as demonstrated be-
+low.
+
+B.
+Determining the optimal ranks on the example of
+Mo-Nb-Ta-W
+
+Here, we discuss the choice of the optimal rank for the MF,
+R-MF, and TF MTPs. We refer to optimal rank as the rank
+that yields a reduction (or compression) of not less than 20%
+of the radial parameters of the base (non-compressed) MTP
+and at which the loss function takes its minimum value. We
+demonstrate the results for the ensembles of MTPs of the 14th
+level trained on Mo-Nb-Ta-W.
+We start with the MF and R-MF MTPs. The dependence of
+the loss function calculated on the MoNaTaW validation set
+on the rank of the factorized matrix of MTP radial parameters
+is shown in Figure 2 (a) (MF) and Figure 2 (b) (R-MF). For
+MF, the loss function significantly decreases up to the rank of
+4 and then continues to decrease more gradually to the rank
+of 8 (which corresponds to 384 radial parameters) and has
+the minimum value for this rank. The loss function obtained
+with R-MF demonstrates similar behavior and reaches a mini-
+mum for the rank of 6 corresponding to 252 radial parameters.
+Thus, the optimal ranks for the MF and R-MF MTPs of the
+14th level fitted on the Mo-Nb-Ta-W training set are r⋆
+MF = 8
+and r⋆
+R-MF = 6, respectively.
+Figure 2 (c) demonstrates the dependence of the loss func-
+tion obtained using the TF MTP with the (r1,r2,r3) TT-
+ranks. The number of radial parameters is given in paren-
+theses.
+The loss function decreases significantly up to
+(r1,r2,r3) = (4,4,4) and then flattens. The optimal TT-ranks
+are (r∗
+1,r∗
+2,r∗
+3) = (4,8,4) which corresponds to 304 radial pa-
+rameters.
+We chose the optimal ranks for the MTPs of other levels
+fitted on Mo-Nb-Ta-W, as well as for the potentials trained on
+FLiNaK and glycine in a similar manner. From Figures 2 (a,
+b, c) it can be seen that the loss functions obtained for op-
+timal ranks are close to those obtained for the ranks related
+to compression of 50%. Therefore, in this work, we also in-
+vestigate the compression of approximately 50%. Histograms
+with ranks and the number of parameters for potentials of the
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+7
+
+0.030
+
+0.030
+
+0.03
+
+0.025
+
+0.025
+
+Loss
+
+Loss
+
+Loss
+
+0.020
+
+0.020
+
+0.02
+
+0.015
+
+0.015
+
+0.010
+
+4,2,4
+(112)
+
+4,4,4
+(176)
+
+4,5,5
+(236)
+
+4,8,4
+(304)
+
+4,9,5
+(380)
+
+3,10,6
+
+base
+(512)
+Rank
+(#parameters)
+
+2
+(96)
+
+4
+(192)
+
+6
+(288)
+
+8
+(384)
+
+10
+(480)
+
+base
+(512)
+Rank
+(#parameters)
+
+2
+(92)
+
+4
+(176)
+
+6
+(252)
+
+8
+(320)
+
+base
+(512)
+Rank
+(#parameters)
+
+(420)
+
+(c)
+
+(a)
+
+(b)
+
+Figure 2: Dependence of the loss function calculated on the Mo-Nb-Ta-W validation set on the rank of (a) the MF (b) the R-MF
+(c) the TF MTPs of the 14th level. The loss function for the base MTP is also shown. Error bars demonstrate uncertainty of the
+loss function prediction and are given within 1-σ confidence interval.
+
+Number of parameters for different models
+
+800
+
+Linear parameters
+Radial parameters
+
+Number of parameters
+
+600
+
+400
+
+200
+
+0
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,8,4)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(3,7,5)
+
+R-MF,
+50%, 
+
+MFRA,
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,6,6)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(4,6,6)
+
+R-MF,
+50%, 
+
+MFRA,
+
+opt, 
+
+opt, 
+
+50%, 
+
+opt, 
+
+opt, 
+
+50%, 
+
+r=8
+
+r=6
+
+r=3,
+rmax=6
+
+r=6
+
+r=6
+
+r=3,
+rmax=6
+
+r=6
+
+r=7
+
+r=2,
+rmax=6
+
+r=6
+
+r=7
+
+r=2,
+rmax=6
+
+Level 14
+Level 18
+
+Methods and ranks
+
+Figure 3: Histogram with the ranks and the number of parameters (linear and radial) for potentials of the 14th and 18th levels
+fitted on the Mo-Nb-Ta-W training set.
+
+Number of parameters for different models
+
+800
+
+Linear parameters
+Radial parameters
+
+Number of parameters
+
+600
+
+400
+
+200
+
+0
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,8,4)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(4,6,4)
+
+R-MF,
+50%, 
+
+MFRA,
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,9,5)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(4,8,4)
+
+R-MF,
+50%, 
+
+MFRA,
+
+opt, 
+
+opt, 
+
+50%, 
+
+opt, 
+
+opt, 
+
+50%, 
+
+r=8
+
+r=9
+
+r=4,
+rmax=8
+
+r=6
+
+r=6
+
+r=2,
+rmax=6
+
+r=8
+
+r=9
+
+r=4,
+rmax=8
+
+r=6
+
+r=7
+
+r=3,
+rmax=6
+
+Level 14
+Level 18
+
+Methods and ranks
+
+Figure 4: Histogram with the ranks and the number of parameters (linear and radial) for potentials of the 14th and 18th levels
+fitted on the F-Li-Na-K training set.
+
+MTPs on the training set including glycine molecular crystals.
+We used the same level of MTP as in Ref.27 and we also took
+the training set from this paper. The results are shown in Table
+II. We conclude that the potentials with the optimal ranks give
+slightly smaller loss functions and fitting errors than the po-
+
+tentials with the compression of 50% of the radial parameters,
+but the difference is negligible: approximately 0.5 meV/atom
+for energy, less than 10 meV/Å for forces, and less than 0.1 eV
+for stresses. We also note that the ensemble of the base MTPs
+and the ensembles of the compressed potentials with the opti-
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+8
+
+Loss
+
+RMSE Energy/Atom
+
+RMSE forces
+
+0.18
+
+0.025
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+0.008
+
+0.16
+
+0.020
+
+0.007
+
+eV/atom
+
+eV/Å
+
+Loss
+
+0.14
+
+0.006
+
+0.015
+
+0.12
+
+0.005
+
+0.010
+
+0.004
+
+0.10
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+Figure 5: Loss function and root mean square errors (RMSEs) for energies and forces for different MTPs trained on
+Mo-Nb-Ta-W with the optimal ranks. The calculations are conducted on the validation set. We provide the results with 68%
+confidence interval (i.e., 1-σ interval).
+
+Loss
+
+RMSE Energy/Atom
+
+RMSE forces
+
+0.18
+
+0.025
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+0.008
+
+0.16
+
+0.020
+
+0.007
+
+eV/atom
+
+eV/Å
+
+Loss
+
+0.14
+
+0.006
+
+0.015
+
+0.12
+
+0.005
+
+0.010
+
+0.004
+
+0.10
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+Figure 6: Loss function and root mean square errors (RMSEs) for energies and forces for different potentials trained on
+Mo-Nb-Ta-W with 50% compression. The calculations are conducted on the validation set. We provide the results with 68%
+confidence interval (i.e., 1-σ interval).
+
+Loss
+
+RMSE Energy/Atom
+
+RMSE forces
+
+0.09
+
+0.025
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+0.0018
+
+0.08
+
+0.020
+
+0.0016
+
+eV/atom
+
+0.07
+
+0.0014
+
+eV/Å
+
+Loss
+
+0.015
+
+0.0012
+
+0.06
+
+0.010
+
+0.0010
+
+0.05
+
+0.0008
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+Figure 7: Loss function and root mean square errors (RMSEs) for energies and forces for potentials trained on FLiNaK with
+optimal ranks. We provide the results with 68% confidence interval (i.e., 1-σ interval).
+
+mal ranks yield similar loss functions, energy and force errors,
+and these compressed potentials give slightly smaller stress
+errors. Thus, as for Mo-Nb-Ta-W and FLiNaK, reducing the
+number of the radial parameters does not worsen the accuracy
+of potentials fitted on glycine.
+
+MTPs of the 14th level and higher with optimal ranks improve
+the accuracy of the base MTPs and potentials with the com-
+pression of 50% of the radial parameters do not significantly
+degrade the accuracy of the base potentials. Second, the ac-
+curacy of MTPs with the twice reduced number of the radial
+parameters is worse, but close to the MTPs with the optimal
+ranks. Therefore, an MTP with compression of 50% is a rea-
+
+From the figures and the table provided in this subsection,
+we make several important conclusions. First, compressed
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+9
+
+Loss
+
+RMSE Energy/Atom
+
+RMSE forces
+
+0.035
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+Base
+MF
+TF
+MFRA
+R-MF
+
+0.10
+
+0.00225
+
+0.030
+
+0.00200
+
+0.09
+
+0.025
+
+0.00175
+
+eV/atom
+
+0.08
+
+eV/Å
+
+Loss
+
+0.020
+
+0.00150
+
+0.07
+
+0.015
+
+0.00125
+
+0.06
+
+0.010
+
+0.00100
+
+0.05
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+12
+14
+16
+18
+Level
+
+Figure 8: Loss function and root mean square errors (RMSEs) for energies and forces for potentials trained on FLiNaK with
+50% compression. We provide the results with 68% confidence interval (i.e., 1-σ interval).
+
+Table III: Densities (in g/cm3 units) for FLiNaK at different
+temperatures, calculated with different MTPs. The results are
+given with 68% confidence interval, i.e., 1-σ interval. The
+experimental density is taken from Ref.50.
+
+Table II: Loss functions and root mean square errors for
+energies, forces, and stresses predicted by different MTPs of
+20th level (each of them has 288 linear parameters) fitted on
+glycine. The results are given with 68% confidence interval
+(i.e., 1-σ interval). Ranks of these potentials and a number of
+radial parameters for each MTP are also provided.
+
+Method
+# Radial
+800 K
+1000 K
+1200 K
+params.
+Base
+512
+2.018 ± 0.002 1.904 ± 0.005 1.803 ± 0.003
+MF opt
+384
+2.016 ± 0.003 1.905 ± 0.002 1.802 ± 0.002
+MF 50%
+240
+2.015 ± 0.006 1.907 ± 0.006 1.807 ± 0.003
+TF opt
+380
+2.016 ± 0.003 1.906 ± 0.002 1.801 ± 0.002
+TF 50%
+276
+2.015 ± 0.002 1.904 ± 0.002 1.798 ± 0.004
+MFRA opt
+384
+2.013 ± 0.002 1.904 ± 0.002 1.803 ± 0.003
+MFRA 50 %
+192
+2.015 ± 0.004 1.905 ± 0.004 1.798 ± 0.004
+R-MF opt
+361
+2.015 ± 0.003 1.906 ± 0.003 1.800 ± 0.008
+R-MF 50 %
+287
+2.018 ± 0.002 1.908 ± 0.004 1.798 ± 0.002
+Experiment
+-
+2.080
+1.955
+1.830
+
+MTP
+rank
+loss
+energy error force error stress error
+(# rad.)
+1e-4
+meV/atom
+meV/Å
+eV
+base
+-
+149 ± 6
+5.2 ± 0.3
+109 ± 2
+1.06 ± 0.03
+(640)
+MF opt
+9
+137 ± 6
+5.2 ± 0.2
+105 ± 2
+0.95 ± 0.05
+(504)
+MF 50%
+6
+159 ± 15
+5.7 ± 0.4
+112 ± 5
+1.03 ± 0.05
+(334)
+R-MF opt
+11
+147 ± 8
+5.3 ± 0.2
+109 ± 3
+1.02 ± 0.03
+(495)
+R-MF 50%
+7
+172 ± 17
+5.8 ± 0.4
+117 ± 5
+1.07 ± 0.07
+(343)
+MFRA opt
+9
+126 ± 3
+4.9 ± 0.2
+100 ± 1
+0.96 ± 0.04
+(504)
+MFRA 50%
+6
+144 ± 4
+5.3 ± 0.2
+107 ± 1
+0.99 ± 0.03
+(334)
+TF opt
+4,10,5
+133 ± 6
+5.1 ± 0.2
+103 ± 2
+0.93 ± 0.04
+(466)
+TF 50%
+4,8,4
+144 ± 8
+5.4 ± 0.1
+107 ± 3
+0.98 ± 0.04
+(336)
+
+D.
+Temperature dependence of the density of molten
+FLiNaK
+
+To examine the predictive power and stability of the com-
+pressed MTPs at finite temperature here, we calculated the
+density of molten LiF-NaF-KF (in an eutectic composition
+46.5-11.5-42 mol% usually labeled as FLiNaK). FLiNaK at
+temperatures of 800-1200 K. To that end, we conducted
+molecular dynamics simulations (MD) for 200 picoseconds in
+the NPT ensemble for the system of 1512 atoms. We utilized
+the LAMMPS package51 for MD simulations. From Tabel III,
+we conclude that all potentials, including those with compres-
+sion of 50% of the radial parameters, give similar densities,
+which are in good agreement with the experimental result50
+
+and previous calculations with the base MTP26.
+
+sonable compromise between the accuracy and the number
+of parameters. Finally, the MFRA potentials recommended
+themselves as the most accurate MTPs in terms of the loss
+function values and fitting errors. Thus, the rank augmenta-
+tion provided in Algorithm 1 is a useful procedure in terms of
+the accuracy of fitting.
+
+E.
+Energy ranking of glycine polymorphs
+
+Here, we test whether a compressed version of MTP can
+can be used for modeling of molecular crystals – as a test sys-
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+10
+
+0
+
+Relative Energy (meV/atom)
+
+2
+
+4
+
+6
+
+8
+
+10
+
+Riem 50
+
+Riem Opt
+
+TF 50
+
+TF Opt
+
+MF 50
+
+MF Opt
+
+Base
+
+MFRA 50
+
+MFRA Opt
+
+Figure 9: Relative stability of glycine polymorphs calculated using MTP of the 20th level with different compression
+algorithms.
+
+tem, we use the glycine molecular crystal, whose polymor-
+phism has been intensively studied (see Refs.52,53 and refer-
+ences therein). The three most energetically favorable struc-
+tures of glycine are polymorphs with space groups P21/c,
+P21, P32, which are labeled α, β, γ.
+We utilized training datasets obtained in a previous study27.
+Our benchmarks with the base and compressed potentials,
+yielding the smallest values of the loss function, demonstrate
+that the three most stable known polymorphs of glycine (α,
+β, and γ) are correctly identified as the most energetically fa-
+vorable. In all cases (even in the compression by 50%), the
+MTP-based rankings show α-glycine to have the lowest en-
+thalpy (see Figure 9), with the β and γ phases being slightly
+higher in energy. This result is consistent with prior DFT-
+based studies52, though it contrasts with the experimental rel-
+ative thermodynamic stability of γ > α > β. This discrepancy
+is not unexpected and points to the need for more accurate
+methods of computing intermolecular interaction energies54.
+
+the base MTPs and, therefore, they require less computational
+resources.
+
+IV.
+CONCLUSIONS
+
+In this study, we proposed methods for reduction of a num-
+ber of parameters in machine-learning interatomic potentials
+(MLIPs). To that end, we used two classes of methods: opti-
+mization with a fixed-rank constraint including matrix factor-
+ization (MF), particularly, skeleton decomposition, tensor fac-
+torization (MF) in a form of tensor train decomposition, and a
+Riemannian version of matrix factorization (R-MF), and opti-
+mization with rank augmentation which we applied to MLIP
+with matrix factorization.
+The methodology is verified using Moment Tensor Poten-
+tial (MTP) model – an example of widely used MLIP. We pre-
+sented all derivations and benchmarked the methodology on
+three systems: Mo-Nb-Ta-W, molten FLiNaK, and a glycine
+molecular crystal.
+The MTP model was selected for test-
+ing due to its wide applicability and well-established bench-
+mark performance. Our results showed that even with com-
+pression of up to 50% of the radial parameters of the base
+(non-compressed) MTP, the fitting errors remain comparable
+and are sometimes even lower. In principle, as demonstrated,
+compressing up to 50% of the radial parameters presents a
+reasonable compromise between accuracy and the number of
+parameters, indicating that half of the radial MTP parameters
+are excessive, at least for high-level potentials.
+For the Mo-Nb-Ta-W system, all compressed MTPs of the
+16th and 18th levels yielded smaller loss functions and lower
+force validation errors than the base MTP. However, all com-
+pressed MTPs of the 12th level resulted in worse (R-MF) or
+only marginally lower (MF, TF, and MFRA) loss functions
+and force validation errors. This is most likely associated with
+
+F.
+Discussion
+
+The main goal of this work was to verify the methods de-
+veloped for compression of MLIPs on the example of MTP.
+We demonstrated the robustness of the proposed methods and
+showed that even 50% compression of the radial parameters
+of MTP retains the accuracy of the base MTP. To calculate the
+gradients of the loss function with respect to the radial param-
+eters of the compressed MTPs, we used the gradients of the
+loss function with respect to the radial parameters of the base
+MTP. Thus, we did not explicitly implement the compressed
+MTPs, but it can be explicitly implemented in the program
+code. The profit from the explicit program realization of the
+compressed form of MTPs is the computational cost of simu-
+lations with these potentials. They have fewer parameters than
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+11
+
+the small number of parameters in the MTP of this level. En-
+ergy fitting errors were similar for all MTPs fitted on Mo-Nb-
+Ta-W. Excluding the MF MTP, all potentials with 50% com-
+pression of the radial parameters yielded results close to the
+optimal ones for this system.
+In the case of FLiNaK, the compressed MTPs are robust,
+i.e., suitable for large-scale MD simulations, and reproduce
+the melt densities at finite temperatures with accuracy compa-
+rable to the base MTP. In contrast to the Mo-Nb-Ta-W system,
+compressing 50% of the radial parameters was not optimal for
+the MTPs fitted on FLiNaK; consequently, only the force fit-
+ting errors for the MF, TF, and MFRA models were smaller
+than those of the base MTP.
+Finally, the compressed MTPs demonstrate the ability to
+correctly optimize and rank glycine polymorphs.
+In this
+test, we fitted only 20th-level MTPs and found that the base
+MTP and those with optimal ranks yielded similar or slightly
+smaller energy RMSEs than the MTPs with 50% compres-
+sion. However, the difference is negligible at approximately
+0.5 meV/atom.
+In the future, we plan to test the active learning algorithm
+based on D-optimality criterion55 for compressed potentials.
+This algorithm enable the automated selection of the smallest
+possible training set without a loss of accuracy or robustness.
+Our confidence stems from previous work56, which demon-
+strated that the size of a training set generated during active
+learning for MTP depends on its number of parameters, and
+from the present study, where we show that compressing 50%
+of the radial MTP parameters does not significantly affect its
+accuracy and predictive power.
+
+Author Contributions
+
+Igor Vorotnikov: Data curation (equal); Formal analy-
+sis (equal); Software (equal); Visualization (equal); Writing
+- original draft (supporting). Fedor Romashov: Data cura-
+tion (equal); Formal analysis (equal); Software (equal); Visu-
+alization (equal); Writing - original draft (supporting). Nikita
+Rybin: Formal analysis (supporting); Methodology (support-
+ing); Writing - review & editing (equal). Maxim Rakhuba:
+Conceptualization (lead); Formal analysis (equal); Method-
+ology (equal); Supervision (equal); Writing - original draft
+(supporting); Writing - review & editing (equal).
+Ivan S.
+Novikov: Conceptualization (supporting); Formal analysis
+(equal); Methodology (equal); Software (supporting); Super-
+vision (equal); Writing - original draft (lead); Writing - review
+& editing (equal).
+
+DATA AVAILABILITY STATEMENT
+
+Data will be made available on request.
+
+REFERENCES
+
+1P. Friederich, F. Häse, J. Proppe, and A. Aspuru-Guzik, “Machine-learned
+potentials for next-generation matter simulations,” Nature Materials 20,
+750–761 (2021).
+2V. Eyert, J. Wormald, W. A. Curtin, and E. Wimmer, “Machine-learned
+interatomic potentials: Recent developments and prospective applications,”
+Journal of Materials Research 38, 5079–5094 (2023).
+3J. Behler and M. Parrinello, “Generalized neural-network representation
+of high-dimensional potential-energy surfaces,” Physical review letters 98,
+146401 (2007).
+4A. P. Bartók, M. C. Payne, R. Kondor, and G. Csányi, “Gaussian approx-
+imation potentials: The accuracy of quantum mechanics, without the elec-
+trons,” Physical review letters 104, 136403 (2010).
+5A. Thompson, L. Swiler, C. Trott, S. Foiles,
+and G. Tucker, “Spectral
+neighbor analysis method for automated generation of quantum-accurate
+interatomic potentials,” J. Comput. Phys. 285, 316 – 330 (2015).
+6A. V. Shapeev, “Moment tensor potentials: A class of systematically im-
+provable interatomic potentials,” Multiscale Modeling & Simulation 14,
+1153–1173 (2016).
+7H. Wang, L. Zhang, J. Han, and E. Weinan, “Deepmd-kit: A deep learn-
+ing package for many-body potential energy representation and molecular
+dynamics,” Computer Physics Communications 228, 178–184 (2018).
+8G. P. Pun, R. Batra, R. Ramprasad, and Y. Mishin, “Physically informed
+artificial neural networks for atomistic modeling of materials,” Nature com-
+munications 10, 2339 (2019).
+9S. Batzner, A. Musaelian, L. Sun, M. Geiger, J. P. Mailoa, M. Kornbluth,
+N. Molinari, T. E. Smidt, and B. Kozinsky, “E (3)-equivariant graph neu-
+ral networks for data-efficient and accurate interatomic potentials,” Nature
+communications 13, 2453 (2022).
+10I. Batatia, D. P. Kovacs, G. Simm, C. Ortner,
+and G. Csányi, “Mace:
+Higher order equivariant message passing neural networks for fast and ac-
+curate force fields,” Advances in neural information processing systems 35,
+11423–11436 (2022).
+11R. Drautz, “Atomic cluster expansion for accurate and transferable inter-
+atomic potentials,” Physical Review B 99, 014104 (2019).
+12M. Hodapp and A. Shapeev, “Equivariant tensor network potentials,” Ma-
+chine Learning: Science and Technology 5, 035075 (2024).
+13V. L. Deringer, M. A. Caro, and G. Csányi, “Machine learning interatomic
+potentials as emerging tools for materials science,” Advanced Materials 31,
+1902765 (2019).
+
+SUPPLEMENTARY MATERIAL
+
+In the supplementary material, we provide details of Rie-
+mannian optimization and additional data.
+
+ACKNOWLEDGMENTS
+
+This work was supported by the Basic Research Program
+at the HSE University, Russian Federation. This research was
+supported in part by computational resources of HPC facilities
+at the HSE University57.
+The authors acknowledge Prof. Dr. Alexander Shapeev for
+providing the code with MTP and python interface and Dmitry
+Korogod for consultations on the code.
+
+AUTHOR DECLARATIONS
+
+Conflict of interest
+
+The authors have no conflicts to disclose.
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+12
+
+14Y.-W. Zhang, V. Sorkin, Z. H. Aitken, A. Politano, J. Behler, A. P. Thomp-
+son, T. W. Ko, S. P. Ong, O. Chalykh, D. Korogod, et al., “Roadmap for the
+development of machine learning-based interatomic potentials,” Modelling
+and Simulation in Materials Science and Engineering 33, 023301 (2025).
+15V. Lebedev, Y. Ganin, M. Rakhuba, I. Oseledets,
+and V. Lempit-
+sky, “Speeding-up convolutional neural networks using fine-tuned cp-
+decomposition,” ICLR (2015).
+16A. Novikov, D. Podoprikhin, A. Osokin, and D. P. Vetrov, “Tensorizing
+neural networks,” Advances in neural information processing systems 28
+(2015).
+17Y.-C. Hsu, T. Hua, S. Chang, Q. Lou, Y. Shen, and H. Jin, “Language
+model compression with weighted low-rank factorization,” ICLR (2022).
+18X. Wang, Y. Zheng, Z. Wan,
+and M. Zhang, “Svd-llm: Truncation-
+aware singular value decomposition for large language model compres-
+sion,” ICLR (2025).
+19Z. Mo, L.-K. Huang, and S. J. Pan, “Parameter and memory efficient pre-
+training via low-rank riemannian optimization,” in The Thirteenth Interna-
+tional Conference on Learning Representations (2025).
+20T. G. Kolda and B. W. Bader, “Tensor decompositions and applications,”
+SIAM review 51, 455–500 (2009).
+21L. Grasedyck, D. Kressner, and C. Tobler, “A literature survey of low-rank
+tensor approximation techniques,” GAMM-Mitteilungen 36, 53–78 (2013).
+22B. N. Khoromskij, Tensor numerical methods in scientific computing,
+Vol. 19 (Walter de Gruyter GmbH & Co KG, 2018).
+23P.-A. Absil, R. Mahony,
+and R. Sepulchre, “Optimization algorithms
+on matrix manifolds,” in Optimization Algorithms on Matrix Manifolds
+(Princeton University Press, 2009).
+24A. Uschmajew and B. Vandereycken, “Geometric methods on low-rank ma-
+trix and tensor manifolds,” in Handbook of variational methods for nonlin-
+ear geometric data (Springer, 2020) pp. 261–313.
+25C. Qi, K. A. Gallivan, and P.-A. Absil, “Riemannian bfgs algorithm with
+applications,” in Recent Advances in Optimization and its Applications in
+Engineering: The 14th Belgian-French-German Conference on Optimiza-
+tion (Springer, 2010) pp. 183–192.
+26N. Rybin, D. Maksimov, Y. Zaikov,
+and A. Shapeev, “Thermophysical
+properties of molten flinak: A moment tensor potential approach,” Journal
+of Molecular Liquids 410, 125402 (2024).
+27N. Rybin, I. S. Novikov, and A. Shapeev, “Accelerating structure predic-
+tion of molecular crystals using actively trained moment tensor potential,”
+Physical Chemistry Chemical Physics 27, 5141–5148 (2025).
+28C. W. Rosenbrock, K. Gubaev, A. V. Shapeev, L. B. Pártay, N. Bernstein,
+G. Csányi, and G. L. Hart, “Machine-learned interatomic potentials for al-
+loys and alloy phase diagrams,” npj Computational Materials 7, 24 (2021).
+29T. Kostiuchenko, F. Körmann, J. Neugebauer, and A. Shapeev, “Impact of
+lattice relaxations on phase transitions in a high-entropy alloy studied by
+machine-learning potentials,” npj Computational Materials 5, 55 (2019).
+30T. Porter, M. M. Vaka, P. Steenblik, and D. Della Corte, “Computational
+methods to simulate molten salt thermophysical properties,” Communica-
+tions Chemistry 5, 69 (2022).
+31V. Kapil and E. A. Engel, “A complete description of thermodynamic sta-
+bilities of molecular crystals,” Proceedings of the National Academy of Sci-
+ences 119, e2111769119 (2022).
+32N. Rybin, I. S. Novikov, and A. Shapeev, “Accelerating structure prediction
+of molecular crystals using actively trained moment tensor potential,” Phys.
+Chem. Chem. Phys. 27, 5141–5148 (2025).
+33F. Della Pia, B. X. Shi, V. Kapil, A. Zen, D. Alfè, and A. Michaelides,
+“Accurate and efficient machine learning interatomic potentials for finite
+temperature modelling of molecular crystals,” Chem. Sci. 16, 11419–11433
+(2025).
+34M. Feng, C. Zhao, G. M. Day, X. Evangelopoulos,
+and A. I. Cooper,
+“A universal foundation model for transfer learning in molecular crystals,”
+Chem. Sci. 16, 12844–12859 (2025).
+35L. M. Hunnisett, N. Francia, J. Nyman, N. S. Abraham, S. Aitipamula,
+T. Alkhidir, M. Almehairbi, A. Anelli, D. M. Anstine, J. E. Anthony, et al.,
+“The seventh blind test of crystal structure prediction: structure ranking
+methods,” Structural Science 80, 548–574 (2024).
+36A. M. Reilly, R. I. Cooper, C. S. Adjiman, S. Bhattacharya, A. D. Boese,
+J. G. Brandenburg, P. J. Bygrave, R. Bylsma, J. E. Campbell, R. Car, et al.,
+“Report on the sixth blind test of organic crystal structure prediction meth-
+ods,” Acta Crystallographica Section B: Structural Science, Crystal Engi-
+
+neering and Materials 72, 439–459 (2016).
+37R. Drautz, “Atomic cluster expansion for accurate and transferable inter-
+atomic potentials,” Phys. Rev. B 99, 014104 (2019).
+38K. Gubaev, E. V. Podryabinkin, and A. V. Shapeev, “Machine learning of
+molecular properties: Locality and active learning,” The Journal of chemi-
+cal physics 148, 241727 (2018).
+39U. Schollwöck, “The density-matrix renormalization group in the age of
+matrix product states,” Annals of physics 326, 96–192 (2011).
+40I. V. Oseledets, “Tensor-train decomposition,” SIAM Journal on Scientific
+Computing 33, 2295–2317 (2011).
+41V. Khoromskaia and B. N. Khoromskij, “Tensor numerical methods in
+quantum chemistry: from hartree–fock to excitation energies,” Physical
+Chemistry Chemical Physics 17, 31491–31509 (2015).
+42B. N. Khoromskij, V. Khoromskaia, and H.-J. Flad, “Numerical solution
+of the hartree–fock equation in multilevel tensor-structured format,” SIAM
+journal on scientific computing 33, 45–65 (2011).
+43M. Rakhuba and I. V. Oseledets, “Grid-based electronic structure calcu-
+lations: The tensor decomposition approach,” Journal of Computational
+Physics 312, 19–30 (2016).
+44P.-A. Absil and I. V. Oseledets, “Low-rank retractions: a survey and new
+results,” Computational Optimization and Applications 62, 5–29 (2015).
+45S. V. Dolgov and D. V. Savostyanov, “Alternating minimal energy meth-
+ods for linear systems in higher dimensions,” SIAM Journal on Scientific
+Computing 36, A2248–A2271 (2014).
+46G. Kresse and J. Furthmüller, “Efficient iterative schemes for ab initio total-
+energy calculations using a plane-wave basis set,” Physical Review B 54,
+11169–11186 (1996).
+47G. Kresse and D. Joubert, “From ultrasoft pseudopotentials to the projector
+augmented-wave method,” Phys. Rev. B 59, 1758–1775 (1999).
+48J. P. Perdew, K. Burke, and M. Ernzerhof, “Generalized gradient approxi-
+mation made simple,” Phys. Rev. Lett. 77, 3865–3868 (1996).
+49S. Grimme, J. Antony, S. Ehrlich, and H. Krieg, “A consistent and ac-
+curate ab initio parametrization of density functional dispersion correction
+(DFT-D) for the 94 elements H-Pu,” The Journal of Chemical Physics 132,
+154104 (2010).
+50R. R. Romatoski and L.-W. Hu, “Fluoride salt coolant properties for nuclear
+reactor applications: A review,” Annals of Nuclear Energy 109, 635–647
+(2017).
+51A. P. Thompson, H. M. Aktulga, R. Berger, D. S. Bolintineanu, W. M.
+Brown, P. S. Crozier, P. J. In’t Veld, A. Kohlmeyer, S. G. Moore, T. D.
+Nguyen, et al., “Lammps-a flexible simulation tool for particle-based ma-
+terials modeling at the atomic, meso, and continuum scales,” Computer
+physics communications 271, 108171 (2022).
+52Q. Zhu, A. R. Oganov, C. W. Glass, and H. T. Stokes, “Constrained evolu-
+tionary algorithm for structure prediction of molecular crystals: methodol-
+ogy and applications,” Acta Crystallographica Section B: Structural Science
+68, 215–226 (2012).
+53E. Boldyreva, T. Drebushchak,
+and E. Shutova, “Structural distortion
+of the α, β, and γ polymorphs of glycine on cooling,” Zeitschrift für
+Kristallographie-Crystalline Materials 218, 366–376 (2003).
+54O. Chalykh, D. Korogod, I. S. Novikov, M. Hodapp, N. Rybin,
+and
+A. V. Shapeev, “Moment tensor potential and equivariant tensor network
+potential with explicit dispersion interactions,” (2025), arXiv:2504.15760
+[physics.chem-ph].
+55E. V. Podryabinkin and A. V. Shapeev, “Active learning of linearly
+parametrized interatomic potentials,” Computational Materials Science
+140, 171–180 (2017).
+56I. S. Novikov, Y. V. Suleimanov, and A. V. Shapeev, “Automated calcu-
+lation of thermal rate coefficients using ring polymer molecular dynamics
+and machine-learning interatomic potentials with active learning,” Physical
+Chemistry Chemical Physics 20, 29503–29512 (2018).
+57P. Kostenetskiy, R. Chulkevich, and V. Kozyrev, “HPC resources of the
+higher school of economics,” in Journal of Physics: Conference Series,
+Vol. 1740 (IOP Publishing, 2021) p. 012050.
+58M. M. Steinlechner, Riemannian optimization for solving high-dimensional
+problems with low-rank tensor structure, Ph.D. thesis, EPFL (2016).
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+13
+
+SUPPLEMENTARY MATERIAL: LOW-RANK MATRIX AND TENSOR APPROXIMATIONS: ADVANCING EFFICIENCY OF
+MACHINE-LEARNING INTERATOMIC POTENTIALS
+
+DETAILS OF RIEMMANIAN OPTIMIZATION
+
+A.
+Basics of Riemannian manifolds
+
+For Riemannian manifolds, a tangent space TXM is defined at each point X, representing a local linearization of the neigh-
+borhood around that point, see Figure 1 from the main text for illustration. When the manifold M is unambiguous, we shorten
+the notation for the tangent space from TXM to simply TX. Formally, the tangent space at X ∈Mr is given by Ref.23:
+
+TXMr =
+n
+UrAV ⊤
+r +U⊥
+r BV ⊤
+r +UrC(V ⊥
+r )⊤ A ∈Rr×r,B ∈R(m−r)×r,C ∈Rr×(n−r)o
+,
+
+where X = UΣV ⊤is a full SVD and U⊥
+r ,V ⊥
+r are defined as in notation section of the main manuscript.
+Optimization methods that use the Euclidean gradient can often be generalized using the Riemannian gradient as an analog.
+In our case, the Riemannian gradient has the following form:
+
+grad f(X) = ProjTX ∇f(X),
+
+which is the projection of the Euclidean gradient onto the tangent space. For any matrix W ∈Rm×n, its projection onto TXMr is
+given by:
+
+ProjTX (W) = W −P⊥
+U WP⊥
+V ,
+
+where X = UΣV ⊤, P⊥
+U = I −UrU⊤
+r and P⊥
+V = I −VrV ⊤
+r .
+For optimization, it is sometimes necessary to transfer vectors from one tangent space to another. This requires a vector
+transport operator. The illustration of the concept is shown on Figure 10. In this work, we use the operator TX→Y : TXMr →
+TYMr, chosen such that for all ξ ∈TX, TX→Yξ = ProjTY ξ.
+
+TxM
+
+x
+
+ξ
+
+Tx→yξ
+M
+
+y
+
+TyM
+
+Figure 10: Illustration of the concept of vector transport Tx→y for a smooth manifold M .
+
+B.
+Riemannian BFGS
+
+To facilitate the representation of linear operators as matrices, it is often convenient to identify Mr with a manifold in Rmn
+
+instead of Rm×n. This is achieved through the vectorization operator vec(·)
+
+vec(A) = reshape(A,[m1 ·m2 ·...·mk]),
+
+which provides a natural isomorphism Rm×n ∼= Rmn. Therefore, we sometimes treat points on Mr as vectors. In this case
+linear operators Rm×n →Rm×n with some fixed (usually standard) basis can be seen as matrices of shape mn×mn. Under this
+interpretation, the equality becomes:
+
+vec
+ 
+ProjTX (W)
+
+=
+ 
+Imn −P⊥
+U ⊗P⊥
+V
+
+vec(W),
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+14
+
+where “⊗” is the Kronecker product that is defined as:
+
+
+
+
+
+a11B ··· a1nB
+...
+...
+...
+am1B ··· amnB
+
+∈Rmp×nq.
+
+A⊗B =
+
+
+
+We also used the following well-known identity for the vectorization of a product involving matrices A ∈Rm×n, X ∈Rn×q, and
+B ∈Rp×q:
+
+vec(AXB⊤) = (A⊗B)vec(X).
+(9)
+
+We apply the BFGS algorithm on our Riemannian manifold (hereafter referred to as RBFGS) for the radial parameters bC
+reshaped in matrix form. The algorithm is taken from Ref.25 with a slight modification – we add a sufficient descent coefficient
+µ. In the original paper, µ = 0.5, although it is not shown explicitly. The version we used is presented in Algorithm 2. Here, the
+optimal values of µ turn out to be either 0.001 or 0.0001 for different problems.
+The RBFGS algorithm, similar to its Euclidean analog, is a quasi-Newton method that builds an approximation of the inverse
+Hessian from successive gradient evaluations. At each iteration, the Riemannian gradient of the objective is computed and used
+together with the displacement of iterates to update this approximation. This allows one to incorporate curvature information
+without explicitly forming the Hessian, which significantly reduces computational cost while still yielding faster convergence in
+practice.
+In more detail, the main steps of the RBFGS algorithm are as follows. First, on k-th iteration at the current point Θk on
+the manifold, we compute the Riemannian gradient of the objective function L. This gradient is then multiplied by the current
+approximation of the inverse Hessian Hk to produce a search direction ηk. Such a transformation improves the choice of direction
+compared to plain gradient descent, while still ensuring that the direction remains within the tangent space of the current point.
+Next, a line search is performed along this direction to find a step of appropriate length αk that noticeably decreases the objective
+function at point RΘk(αkηk). Here, the retraction operator is used to map the tangent vector αkηk back onto the manifold. After
+the step is taken and the point is updated on the manifold, the algorithm proceeds with an efficient update rules that adjust
+the inverse Hessian approximation, so that curvature information from the new iterate is incorporated. For these updates both
+transport operator TΘk→Θk+1 and inverse transport operator T −1
+Θk→Θk+1 are used to work with vectors lying in tangent spaces at
+different points.
+The algorithm is universal and works with arbitrary manifolds. However, we need to understand its explicit form for the
+manifold Mr of the fixed-rank matrices we work with. All operators used in the algorithm have an efficiently computable
+explicit form, except for the inverse transport operator. Therefore, the main problem is to derive the inverse transport operator in
+the matrix form. Next we describe the final formulas and provide their derivation in supplementary material.
+
+Algorithm 2: RBFGS
+Input: Riemannian manifold M with Riemannian metric g; vector transport T on M with associated retraction R; smooth function
+L(Θ) on M ; initial iterate Θ0 ∈M ; initial approximation of inverse Hessian H0; coefficient of sufficient decrease µ.
+for k = 0,1,2,... do
+
+Obtain ηk ∈TΘkM by solving ηk = −Hk gradL(Θk);
+Set step size α ←1, c ←g(gradL(Θk),ηk);
+while L(RΘk(2αηk))−L(Θk) < 2µαc do
+
+α ←2α;
+
+while L(RΘk(αηk))−L(Θk) ≥µαc do
+
+α ←0.5α;
+
+Set Θk+1 ←RΘk(αηk);
+Define sk ←TΘk→Θk+1(αηk);
+Define yk ←gradL(Θk+1)−TΘk→Θk+1(gradL(Θk));
+Define operator Hk+1 : TΘk+1M →TΘk+1M by
+
+Hk+1p = eHkp−g(yk, eHkp)
+
+g(yk,sk) sk −g(sk, p)
+
+g(yk,sk)
+eHkyk+
+
++ g(sk, p)g(yk, eHkyk)
+
+g(yk,sk)2
+sk + g(sk,sk)
+
+g(yk,sk) p,
+∀p ∈TΘk+1M ;
+
+where eHk = TΘk→Θk+1 ◦Hk ◦(TΘk→Θk+1)−1;
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+15
+
+We additionally note that the manifold M in the algorithm in our case is R|Ξ| × Mr (the first term corresponds to the linear
+parameters, the second term corresponds to the reduced number of the radial parameters) where r is the matrix rank, Mr is a
+manifold of matrices of this rank. Therefore, we refer to MTP fitted with Algorithm 2 as the R-MF MTP. We note that for the
+ease of presentation we only focus on the optimization on Mr.
+Let z ∈M where M is an arbitrary manifold. By Tz denote the tangent space TzM and by Pz denote the matrix of orthogonal
+projector ProjTz onto Tz in standard basis.
+
+Proposition IV.1. Let M ⊆RN be a Riemannian manifold of the dimensionality M. Let Bx,By ∈RN×M be matrices of orthogonal
+bases in Tx and Ty respectively, and the operator of vector transport Tx→y be a restriction of ProjTy on Tx. Then the operator of
+inverse transport T −1
+x→y : TyM →TxM can be expressed in matrix form in standard basis in RN as Bx(B⊤
+y PyBx)−1B⊤
+y .
+
+Proof. Note that Tx→y = ProjTy
+
+Tx and Tx→y is bijective since the dimensions of tangent spaces at each manifold point are equal
+and we assume the mapping is surjective. Our goal is to obtain T −1
+x→y in matrix form RN×N to work with vectors in the standard
+basis in RN.
+We propose the following solution. Let matrix Px→y ∈RM×M be the mapping that takes a vector from Tx in Bx basis coordinates
+and outputs in By basis coordinates.
+Derive the formula for Px→y. On the one hand, for each vector in Tx in Bx coordinates we can multiply it by Px→y and get its
+projection on Ty in By coordinates. On the other hand, we can multiply it by Bx to transform into standard coordinates in RN,
+then project that vector on Ty multiplying by Py and then change the basis to By multiplying by B+
+y . Hence, we have the equality:
+
+Px→y = B+
+y PyBx = B⊤
+y PyBx,
+
+where the left matrix has size M ×M. Therefore:
+
+P−1
+x→y = (B⊤
+y PyBx)−1
+
+However, we need T −1
+x→y, not P−1
+x→y. To obtain this, for each vector in Ty in standard coordinates we have to convert the vector to
+By coordinates, apply P−1
+x→y, then return the result to standard basis from Bx basis. Hence, the final matrix:
+
+T −1
+x→y = Bx(B⊤
+y PyBx)−1B⊤
+y
+
+For some manifolds, we can further accelerate obtaining the inverse transport matrix by considering explicit formulas for
+obtaining the basis and orthogonal projector on the tangent space. It can be noted that Bx do not have to be orthogonal basis for
+formula to work, though it is a good practice to use orthogonal Bx for numerical stability.
+
+Now consider a specific case in which we are interested in this work: the manifold Mr of fixed rank r matrices of size m×n.
+As we mentioned earlier, sometimes we think of matrices as of vectors implying natural isomorphism vec(·) : Rm×n →Rmn. Let
+˜
+Mr be a manifold of vectorized matrices from Mr. For matrices X,Y we denote x = vec(X), y = vec(Y).
+
+Proposition IV.2. Let X,Y ∈Mr be matrices of shape m ×n, with full SVD X = UXΣXV ⊤
+X , Y = UYΣYV ⊤
+Y . The matrix form of
+the inverse transport operator on
+˜
+Mr can be expressed as
+
+T −1
+x→y = E⊤
+(U⊤
+Y UX)⊗(V ⊤
+Y VX)−(U⊤
+Y P⊥
+UYUX)⊗(V ⊤
+Y P⊥
+VYVX)
+
+E,
+
+where P⊥
+UY = Im −(UY)r(UY)⊤
+r , P⊥
+VY = In −(VY)r(VY)⊤
+r and E is a matrix consisting only of 0 and 1 such that Multiplying by this
+matrix “cuts out” special columns of the initial matrix.
+
+Proof. For Mr, the explicit form of matrices in TXMr (see Ref.58) is:
+
+TXMr =
+UX,r U⊥
+X,r
+
+∗∗
+∗0
+
+VX,r V ⊥
+X,r
+⊤
+,
+
+where X =UXΣXV ⊤
+X – full SVD and UX,r = (UX)r, VX,r = (VX)r. Show that the set of matrices lying in TXMr and having a form
+UXEijV ⊤
+X , where i ≤r or j ≤r, is orthogonal:
+
+(
+1,
+if i1 = i2, j1 = j2,
+0,
+otherwise.
+
+⟨UXEi1 j1V ⊤
+X ,UXEi2 j2V ⊤
+X ⟩F = ⟨Ei1 j1,Ei2 j2⟩F =
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+16
+
+Notice that the cardinality of this set is (n+m−r)r. It equals dimensionality of TXMr, therefore, {UXEijV ⊤
+X | i ≤r or j ≤r} is
+an orthogonal matrix basis in TXMr and {vec(UXEijV ⊤
+X ) | i ≤r or j ≤r} is an orthogonal vector basis in Tx
+˜
+Mr. To obtain Bx
+we have to stack these vectors:
+
+Bx =
+
+vec(UXE11V ⊤
+X ),vec(UXE12V ⊤
+X ),...
+
+
+Since
+
+vec(UXEijV ⊤
+X ) = (UX ⊗VX)vec(Eij),
+
+then
+
+Bx = (UX ⊗VX)
+vec(E11),vec(E12),...
+
+Let us call the matrix in brackets E. The explicit matrix form of the projector onto Tx
+˜
+Mr:
+
+Px = Imn −(Im −UX,rU⊤
+X,r)⊗(In −VX,rV ⊤
+X,r)
+
+Recall that we denote P⊥
+UX = (Im −UX,rU⊤
+X,r), P⊥
+VX = (In −VX,rV ⊤
+X,r).
+Putting it all together and using the Lemma IV.1:
+
+Px→y =B⊤
+y PyBx = E⊤(U⊤
+Y ⊗V ⊤
+Y )(Imn −P⊥
+UY ⊗P⊥
+VY )(UX ⊗VX)E =
+
+=E⊤
+(U⊤
+Y UX)⊗(V ⊤
+Y VX)−(U⊤
+Y P⊥
+UYUX)⊗(V ⊤
+Y P⊥
+VYVX)
+
+E.
+
+Remark. Notice that since E consists of M columns of the form ei we can multiply it in O(#elements in multiplied matrix) time.
+
+Let
+
+mask = vec
+
+1r×r
+1r×(n−r)
+1(m−r)×r 0(m−r)×(n−r)
+
+
+∈RN,
+
+where 1n1×n2 is a matrix of size n1 ×n2 consisting entirely of ones, then for any matrix A
+
+AE = A[:,mask],
+
+meaning that the new matrix is obtained from A by cutting out the columns which indices i satisfy mask[i] = 1.
+
+Low-rank matrix and tensor approximations: advancing efficiency of machine-learning interatomic potentials
+17
+
+HISTOGRAMS WITH RANKS AND PARAMETERS FOR POTENTIALS OF THE 12TH AND 16TH LEVELS
+
+Number of parameters for different models
+
+600
+
+Number of parameters
+
+Linear parameters
+Radial parameters
+
+500
+
+400
+
+300
+
+200
+
+100
+
+0
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,6,4)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(4,6,4)
+
+R-MF,
+50%, 
+
+MFRA,
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,9,5)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(3,7,5)
+
+R-MF,
+50%, 
+
+MFRA,
+
+opt, 
+
+opt, 
+
+50%, 
+
+opt, 
+
+opt, 
+
+50%, 
+
+r=7
+
+r=6
+
+r=2,
+rmax=6
+
+r=5
+
+r=6
+
+r=2,
+rmax=4
+
+r=8
+
+r=7
+
+r=3,
+rmax=6
+
+r=6
+
+r=7
+
+r=3,
+rmax=6
+
+Level 12
+Level 16
+
+Methods and ranks
+
+Figure 11: Histogram with the ranks and the number of parameters (linear and radial) for potentials of the 12th and 16th levels
+fitted on the Mo-Nb-Ta-W training set.
+
+Number of parameters for different models
+
+600
+
+Number of parameters
+
+Linear parameters
+Radial parameters
+
+500
+
+400
+
+300
+
+200
+
+100
+
+0
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,6,6)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(4,6,4)
+
+R-MF,
+50%, 
+
+MFRA,
+
+Base
+MF,
+opt, 
+
+TF,
+opt, 
+r=(4,9,5)
+
+R-MF,
+
+MFRA,
+
+MF,
+50%, 
+
+TF,
+50%, 
+r=(3,7,5)
+
+R-MF,
+50%, 
+
+MFRA,
+
+opt, 
+
+opt, 
+
+50%, 
+
+opt, 
+
+opt, 
+
+50%, 
+
+r=7
+
+r=9
+
+r=2,
+rmax=6
+
+r=5
+
+r=6
+
+r=2,
+rmax=4
+
+r=8
+
+r=9
+
+r=4,
+rmax=8
+
+r=6
+
+r=7
+
+r=3,
+rmax=6
+
+Level 12
+Level 16
+
+Methods and ranks
+
+Figure 12: Histogram with the ranks and the number of parameters (linear and radial) for potentials of the 12th and 16th levels
+fitted on the F-Li-Na-K training set.
+

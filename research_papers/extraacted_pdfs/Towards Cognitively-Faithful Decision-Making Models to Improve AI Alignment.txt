@@ -1,0 +1,2086 @@
+Towards Cognitively-Faithful Decision-Making
+Models to Improve AI Alignment
+
+Cyrus Cousins
+Duke University
+Vijay Keswani
+Duke University
+Vincent Conitzer
+CMU
+Hoda Heidari
+CMU
+
+Jana Schaich Borg
+Duke University
+Walter Sinnott-Armstrong
+Duke University
+
+arXiv:2509.04445v1  [cs.LG]  4 Sep 2025
+
+Abstract
+
+Recent AI work trends towards incorporating human-centric objectives, with the
+explicit goal of aligning AI models to personal preferences and societal values.
+Using standard preference elicitation methods, researchers and practitioners build
+models of human decisions and judgments, which are then used to align AI be-
+havior with that of humans. However, models commonly used in such elicitation
+processes often do not capture the true cognitive processes of human decision
+making, such as when people use heuristics to simplify information associated
+with a decision problem. As a result, models learned from people’s decisions of-
+ten do not align with their cognitive processes, and can not be used to validate the
+learning framework for generalization to other decision-making tasks. To address
+this limitation, we take an axiomatic approach to learning cognitively faithful de-
+cision processes from pairwise comparisons. Building on the vast literature char-
+acterizing the cognitive processes that contribute to human decision-making, and
+recent work characterizing such processes in pairwise comparison tasks, we define
+a class of models in which individual features are first processed and compared
+across alternatives, and then the processed features are then aggregated via a fixed
+rule, such as the Bradley-Terry rule. This structured processing of information
+ensures such models are realistic and feasible candidates to represent underlying
+human decision-making processes. We demonstrate the efficacy of this modeling
+approach in learning interpretable models of human decision making in a kidney
+allocation task, and show that our proposed models match or surpass the accuracy
+of prior models of human pairwise decision-making.
+
+1
+Introduction
+
+There are several advantages to building computational models of human cognition. They allow us
+to quantify and study the factors that influence our decisions, and when accurate, help explain com-
+monalities in human decision processes across different tasks [23, 14]. This may also be why com-
+putational models to predict human behavior have recently found applications in personalized AI
+tools in various settings, e.g., healthcare, autonomous vehicles, and resource allocation, to increase
+users’ confidence that AI will be aligned with their preferences [29, 50, 13, 37, 51, 52, 39, 19].
+
+Despite these promising use cases, current AI models of human decision-making typically do not
+attempt to faithfully replicate human decision processes. Modern AI tools built using preference
+elicitation [39, 2, 31, 19, 62] and reinforcement learning methods [50, 13, 35] implicitly assume
+that a reward/objective model from a pre-specified hypothesis class can accurately predict human
+decisions, and are agnostic about how faithful the models are to humans’ actual decision processes.
+Recent works cast doubt on this approach, however, highlighting the lack of suitable hypothesis
+
+Preprint. Under review.
+
+classes to capture human choices or their values [67, 4, 40]. Unsuitable modeling classes introduce
+the possibility of inappropriate optimization formulations and reward hacking [55, 27], and can lead
+to arbitrarily erroneous inferential models learned from human responses [77, 55]. Additionally,
+such misaligned models are limited in their explanatory power and trustworthiness. As suggested
+by Jacovi et al. [28], misalignment between AI and human reasoning processes threatens intrinsic
+trust placed in the AI’s decisions. These problems are further exacerbated when AI is used in
+high-stakes domains, including moral domains such as healthcare and sentencing [66, 37], where
+stakeholders often expect an AI to justify its decision in a similar manner and to the same extent as
+humans [42, 36]. Modeling done in prior moral decision-making contexts either favors simple model
+classes — e.g., linear models and decision trees [39, 51, 19], whose fit for human decision-making
+is highly context-specific [20, 79], or employs uninterpretable classes — e.g., neural networks or
+random forests [74, 73] — whose decision process cannot be validated due to their uninterpretable
+designs.
+A recent qualitative study on kidney transplant allocation decisions noted this process
+misalignment as a crucial issue with trusting AI to decide who gets an available kidney, with one
+study participant expressing the following concern about AI: “my concern, they don’t think like a
+human [..] what they might think should be ranked as priority I may not think the same way” [36].
+
+The above examples show that, for certain real-world applications, building trustworthy AI tools
+requires accurately simulating human decision processes. Yet, the challenge here is that human
+decision processes often differ from the mechanisms represented by standard hypothesis classes.
+In particular, consider humans’ use of decision heuristics, defined by Gigerenzer and Gaissmaier
+[22] as a strategy “that ignores part of the information, with the goal of making decisions more
+quickly, frugally, and/or accurately than more complex methods”. The qualitative study on kidney
+transplant allocation decisions quoted above documents several heuristics people use when deciding
+which patient should get an available kidney [36]. For instance, their study participants often used
+a form of hiatus heuristic, employing thresholds to isolate relevant patient feature information; e.g.,
+some transformed patients’ number of dependents into a binary feature that simply captured whether
+the patient has dependents or not. Others used simple aggregation methods, such as the tallying
+heuristic that counts the number of features favoring each patient to make the final choice. While
+the role of such heuristics in human decision processes is well established [22, 64, 23], models
+learned from human decisions using standard hypothesis classes often don’t capture or explain the
+heuristics people use to make decisions. For example, if a decision-maker uses the threshold-based
+heuristic mentioned above, linear models would fail to capture it, while neural networks may learn
+the heuristic but would fail to explain its role in the decision process. To explain or simulate human
+decision processes accurately, we need methods to learn and represent these heuristics (and other
+decision-making nuances). To that end, this paper explores hypothesis classes that more accurately
+capture the cognitive processes people use to make their decisions in pairwise comparison settings.
+
+This paper presents a learning framework for computational models of human decision-making in
+pairwise comparisons, which is motivated by, and aligned with, prior works on human cognition
+and natural decision-making axioms (section 2). Given any pairwise comparison between two al-
+ternatives x1, x2 ∈Rd, we derive hypothesis classes that model the decision-maker’s response to
+this comparison as consisting of a sequential two-stage process (section 2.1). The first stage cap-
+tures the editing rules that the decision-maker employs over individual features x(j)
+1 , x(j)
+2
+to pro-
+cess/simplify/transform the information presented in feature j ∈[d]. Each feature j may have its
+own decision rule, and these rules work towards transforming x(j)
+i
+in a manner that reflects the fea-
+ture’s contribution to the decision-maker’s final choice (e.g., whether the decision-maker applies a
+threshold on this feature or “zeroes” it out). We allow this transformation to be contextual in nature,
+whereby the value of one or more features can influence the transformation used for another feature.
+Such conditional transformations capture feature interactions in our hypothesis class, increasing the
+models’ expressiveness while ensuring that we still learn feature-level decision rules. The second
+stage captures the decision rule that aggregates the processed features to choose the preferred al-
+ternative. This aggregation rule can be as simple as the tallying heuristic [23] or as complicated
+as Bradley-Terry aggregation for probabilistic preferences [6]. Beyond the motivations from prior
+works on heuristic decision-making, we present a simple axiomatic basis of human decision-making
+processes that yields our two-stage model class (section 2.2). Moreover, more stringent assumptions
+yield special cases of interest, such as logistic regression, probit regression, and monotonic decision
+rules. We also assess the empirical efficacy of our proposed framework over synthetic and real-world
+datasets in the kidney allocation domain (section 3), a domain where users have said cognitive pro-
+cess alignment is particularly important. In this domain, we show that our method can learn models
+
+2
+
+that explain the decision rules that people use for kidney allocation decisions, while ensuring that
+the learned model has similar or better predictive accuracy than other modeling approaches.
+
+Related Works Methods for learning models based on choices over alternatives have been pro-
+posed in many contexts, such as recommender systems [34, 24, 12], language model personalization
+[62, 30, 78, 54], and explanatory frameworks in social psychology [41, 3, 11]. Additional recent
+use cases lie in the domain of human-centered AI and AI alignment, to elicit and encode stake-
+holder preferences in AI [30, 29, 9, 17, 37, 31, 66, 44, 39]. Across these use cases, the usability
+of learned models in real settings relies on both their predictive accuracy and their alignment to
+humans’ decision-making [49, 36, 9, 42]. However, modeling strategies in most prior AI alignment
+work are agnostic about whether they capture human decision-making processes. Our work fills this
+gap by proposing modeling classes explicitly motivated by the decision rules people have previously
+reported using for pairwise comparisons. In related work, Noothigattu et al. [53] study the class of
+binary decision rules arising from pairwise comparisons. However, their axioms concern MLE es-
+timation over data, and thus are distribution sensitive, whereas our axioms dictate laws as to how
+probabilistic preferences must behave over their domain. Noothigattu et al. [53] also do not charac-
+terize model classes arising from their axioms, but rather study whether known classes satisfy them.
+Ge et al. [21] continues this line of inquiry, again with axioms related to estimation from datasets.
+
+There have also been other efforts to computationally model human decision-making. Bourgin et al.
+[5] propose constructing models bounded by theoretical properties of human decision-making that
+are fine-tuned with real-world data, but they aim for accurate predictions, not necessarily inter-
+pretable models. Rosenfeld et al. [63] model agents solving optimization problems, sharing our
+motivation of accurately simulating cognitive processes. For the settings they consider, the op-
+timization objectives are known. In contrast, we model human decision-making in comparative
+settings where the decision objectives are unavailable to the elicitation framework and can differ
+across users.
+Peterson et al. [59] use neural networks to implement and test cognitive models of
+participant choices for pairs of gambles. This analysis provides information on the fit of various
+cognitive models, but does not provide a mechanism to learn the decision-making process through
+any individual’s data. Plonsky et al. [61] and Payne et al. [57] use psychological theories to select
+feature transformations or simulate prespecified heuristics to obtain gains in predictive power by cu-
+rating the learning tasks to be more cognitive aligned with human decision processes. However, the
+applicability of these methods can be limited in settings where feature transformations are unknown
+apriori and vary across individuals. Our work also uses relevant works in psychology to identify ap-
+propriate decision rule assumptions, but we learn the feature heuristics/transformations from human
+decisions. Other works use neural networks alongside theory-driven cognitive models to simulate
+human decision-making [18, 43], but such models of learned decision processes are largely unin-
+terpretable. Several studies have also illustrated that simple heuristic-based models predict human
+responses very well in classification [26, 65, 8, 15, 16], supporting our goal of learning these heuris-
+tics from people’s decisions. Yet, the heterogeneity of heuristics used by different people makes it
+difficult to find a single model to accurately simulate the responses for an entire population. Our
+work addresses this gap by learning individual-level decision rules from data.
+
+2
+Our Model
+
+Consider the setting where a decision-maker is presented with pairwise comparison (x1, x2) between
+two alternatives from the domain X ⊆Rd, where d > 0 denotes the number of features describing
+each alternative. For each i ∈[d], let Xi ⊆R denote the input space for feature i, such that
+X
+.= X1 × · · · × Xd. The decision-maker’s stochastic response function is represented by H :
+X × X →[0, 1], denoting the probability of choosing the first alternative x1 for any given pairwise
+comparison (x1, x2). To learn H from observed data, suppose we are given a dataset S containing
+the decision-maker’s responses to N pairwise comparisons of the kind (x1, x2, r), where r ∈{0, 1},
+is the binary decision, with r = 1 if the decision-maker deterministically chose x1, and 0 otherwise.
+
+Given dataset S, we aim to learn a model ˆH that accurately simulates the decision-maker’s re-
+sponse function. Taking a general learning approach to this problem, given a hypothesis class
+of models H, we can search for a model from H that minimizes the predictive loss over S; i.e.,
+ˆH .= arg minH′∈HP(x1,x2,r)∈S[H′(x1, x2) ̸= r]. A common approach to learning ˆH is to start with
+standard hypothesis classes, such as the class of linear functions Hlinear, decision trees Htree, or even
+neural networks Hneural. However, as discussed earlier, the assumptions of these classes are likely not
+
+3
+
+faithful to the cognitive processes people truly use to reach their own decisions [36]. As such, when
+using these classes, the resulting model can be difficult to validate and may lead to erroneous predic-
+tions in cases where the model class cannot capture the computation required to reach the “correct”
+decision. We aim to identify a hypothesis class that yields the most accurate model while faithfully
+representing humans’ actual decision-making processes. Such models have the added benefit of be-
+ing interpretable for human users. To come up with cognitively faithful computational models, we
+first discuss the computational properties commonly observed in human decision-making processes,
+and then use these properties to construct an appropriate hypothesis class.
+
+2.1
+Rule-Based Decision-Making Models
+
+As discussed earlier, prior works on cognitive models for human decision-making point to a reliance
+on decision rules and heuristics in comparative settings [23, 22, 7, 33, 32]. Based on this literature,
+we construct hypothesis classes that consist of hierarchical decision rules. Our proposed strategy
+models decision-making for pairwise comparison of alternatives (x1, x2) as a two-step process.
+In the first step, the decision-maker processes each feature in x1 and x2 to edit or transform the
+information presented using this feature. In the second step, the decision-maker combines the edited
+information from all features to select the dominant alternative. Our hypothesis class will consist of
+functions that reflect this hierarchical process.
+
+(1) The decision rules or heuristic functions used in the first step are referred to as editing rules. Edit-
+ing rules operate at the level of individual features of each element in the given pair and operational-
+ize how a decision-maker processes the given feature value. Let hi
+inner : Xi →X ′
+i denote the editing
+rule for feature i, with X ′
+i the output domain post-editing. Examples of editing include feature sim-
+plification (e.g., zeroing out features considered irrelevant), transformation (e.g., log transformation
+for features with “diminishing returns” or scaling), or leaving the feature unchanged.
+
+While these rules are often simple in structure, reflecting their use to reduce cognitive load [22],
+there can be significant heterogeneity in the editing used in different contexts. For example, prior
+works note feature interactions, where the editing rule used for the i-th feature x(i) can depend on
+the values of other features of x [36]. To account for this, we will consider the choice of editing
+rule conditional on the decision context, denoted by the values of features in a set ω ⊆[d]. In
+other words, with context ω, the editing rule for any feature i can be different for different values
+xω. In the weakest case, ω = ∅, implying that each feature is edited independently (i.e., no feature
+interactions). In the strongest case, ω = [d], implying that the choice of editing function for each
+feature in x can depend on the values of all other features of x.1 To account for this context ω
+(with slight abuse of notation), for any alternative x ∈X, we will denote the contextual editing rule
+operating over feature i by hi,xωi
+inner : Xi →X ′
+i, where ωi = ω \ {i}.
+
+Remark 2.1 (Examples of Editing Rules). The use of editing rules is well-supported by literature in
+behavioral economics and social psychology. Montgomery [47] describes the phase of “separating
+relevant information from less relevant information which can be discarded in subsequent informa-
+tion processing.” Kahneman and Tversky [33] argue that the editing phase allows decision-making
+based only on the most essential information. Several works also note significant heterogeneity in
+editing rules. In some settings, they represent feature importance assignment [56, 64, 23]. In other
+cases, editing reflects feature transformations to isolate information relevant to the task [1, 64], e.g.,
+thresholding to discretize features, or log-transformation to model diminishing returns [69, 38].
+
+(2) In the second step of the decision-making process, the edited features are compared across the
+two alternatives (x1, x2) and then combined to reach the final decision on which alternative is the
+dominant one. We will refer to this second step as the dominance testing rule. Let houter : X ′×X ′ →
+[0, 1] denote the dominance test function, where X ′ = X ′
+1 × · · · × X ′
+d.
+
+Remark 2.2 (Examples of Dominance Testing rules). Several dominance testing rules have been
+studied in prior literature, including the tallying up heuristic mentioned earlier [15, 22] and the
+prominent feature heuristic (choose the element favored by the most prominent feature for which
+there is non-zero difference in edited feature value across the alternatives) [58, 71]. Alternately, one
+could create additive or probabilistic functions to capture various dominance testing rules observed
+in practice, e.g., Bradley-Terry aggregation [6] (discussed in section 2.2).
+
+1Note that the larger the context ω, the larger the number of editing rules to be learned, and the higher the
+learning complexity. Hence, in our simulations, we will limit ω to just one feature.
+
+4
+
+Complementarity
+
+Weak Transitivity
+
+Codomain Span
+Noninteractive
+Compositionality
+
+p
+
+x2
+
+p
+q
+
+x1
+x2
+
+x2
+′′′
+
+Xj
+Xi
+
+x1
+
+x3
+
+f(p, q)
+
+x′
+2
+x′′
+2
+
+1 −p
+
+Xi
+Xj
+
+Key:
+Assumed
+Prediction
+
+x1
+
+Consequent
+Prediction
+
+Feature
+Modification
+
+Figure 1: Visualization of the axioms of definition 2.3. Solid arrows represent assumed choice probabilities,
+dashed arrows represent choice probabilities implied by an axiom, and in noninteractive compositionality,
+dotted arrows represent feature modifications. Arrows may be labeled with choice probabilities.
+
+With this setup, we model a decision maker’s response to any pairwise comparison as first applying
+editing functions hi,xω
+i
+inner over each feature i for both alternatives, given context ω and ωi = ω \ {i},
+and then combining the edited information to reach the final decision using the dominance testing
+rule houter. Hence, our proposed hypothesis class contains such two-stage models, namely
+
+
+∀i ∈[d], x(i)
+1
+7→h
+i,xωi
+1
+inner (x(i)
+1 ), x(i)
+2
+7→h
+i,xωi
+2
+inner (x(i)
+2 )
+  h·,·
+inner ∈Hinner, houter ∈Houter
+
+
+.
+
+H .=
+
+x1, x2 7→houter
+
+The properties that characterize classes Hinner and Houter are discussed in the next section.
+
+2.2
+Axiomatic Characterization of Decision Rules
+
+The above-described two-stage process is motivated by extensive decision-making literature. An ad-
+ditional compelling motivation for this hypothesis class comes from an axiomatic characterization of
+human decision processes for pairwise comparisons. The axioms below describe simple properties
+expected to be satisfied in an ideal comparative choice model (independent of its functional form).
+Definition 2.3 (Axioms of Binary Choice Models). Consider a binary preference function
+H(x1, x2) : X 2 →Y. We define the following axioms on H(·, ·). Unless otherwise stated, each
+must hold for all x1, x2, x3 ∈X.
+
+1. Complementarity: The order in which two options are presented should not impact the alterna-
+tive that is eventually selected. Formally, we require that H(x1, x2) = 1 −H(x2, x1).
+2. Weak Transitivity (WT): The comparison H(x1, x3) can be expressed as a function of H(x1, x2)
+and H(x2, x3), i.e., for some f : [0, 1]2 →[0, 1], it holds that H(x1, x3) = f(H(x1, x2), H(x2, x3)).
+3. Codomain Span: For any p ∈(0, 1) and x1 ∈X, there exists x2 ∈X such that H(x1, x2) = p.
+4. Noninteractive Compositionality (NC): Suppose some x1 ∈X, and x′
+2, x′′
+2, x′′′
+2 ∈X such that
+x′
+2 and x′′
+2 are obtained by changing different features of x1, and x′′′
+2 is produced by applying both
+changes to x1. We then require that H(x1, x′′′
+2 ) can be computed from H(x1, x′
+2) and H(x1, x′′
+2).
+5. Conditionally Interactive Compositionality (CIC): Given a set of condition features ω ⊆[d],
+suppose some x1 ∈X, and x′
+2, x′′
+2, x′′′
+2 ∈X such that x′
+2 and x′′
+2 are obtained by changing different
+features (neither in ω) of x1, and x′′′
+2 is produced by applying both changes to x1. We then require
+that H(x1, x′′′
+2 ) can be computed from H(x1, x′
+2) and H(x1, x′′
+2).
+
+These axioms are visualized in figure 1. Complementarity ensures that the order in which options
+are presented should not matter, and predicted probabilities sum to 1. Weak transitivity requires that
+comparisons between (x1, x2) and (x2, x3) carry all the information about the items x1, x2, x3 to
+also compare (x1, x3), i.e., the first two pairwise comparisons suffice to “complete the triangle” of all
+three pairwise comparisons. Codomain span is a technical condition, as to specify the decision rule
+for all probabilities, we must ensure that all probabilities arise in comparisons over the domain X.
+Theorem 2.4 item 2 shows that these properties work together to induce a strong form of transitivity
+in probabilistic predictions.
+
+Axioms 4 & 5 characterize the extent to which different features interact in the decision process.
+Noninteractive compositionality encodes a form of feature independence, requiring that the impact
+of changing two different features is compositional, which is less restrictive than assuming linearity,
+but restricts interactions between features in a similar manner. Essentially, this axiom character-
+izes a generalized additive model (GAM) [25], as it dictates how information is synthesizes across
+features. Conditional interactivity then generalizes this idea, allowing for non-additive conditional
+feature interactions. We propose this axiom to account for a larger class of models that consider the
+
+5
+
+decision context, where the impact of changing two features is additively compositional, except if
+one of the features is a condition feature (part of the context ω described in section 2.1). Axioms
+1–3 are prescriptive, while 4–5 are not assumed to be universal, but rather characterize a class of
+simple decision-making rules.
+
+All our axioms are simple statements about concrete judgments over pairwise choices (rather than
+more abstract properties like estimation or a specific decision mechanism). Furthermore, they are
+quite weak: WT assumes that transitive relationships exist, and NC and CIC assume that the impact
+of multiple independent feature modifications can be computed, without specifying any particular
+relationship. Note that we do not claim that our axioms are characterizations of rationality. Rather,
+these axioms characterize an ideal binary choice process in the absence of cognitive biases; limita-
+tions of this assumption are discussed in section 4. We next show that the decision-making processes
+that satisfy these axioms follow the two-stage process outlined in section 2.1.
+
+Theorem 2.4 (Axiomatic Factoring Characterization).
+
+1. Atomic Model Suppose axiom 1, and also that X is a countable domain. Then there exists an
+atomic rule hinner : X →R and houter : R →[0, 1] s.t. H(·, ·) can be factored as
+
+H(x1, x2) = houter (hinner(x1) −hinner(x2)) .
+
+2. σ(·)-Transitivity Suppose axioms 2–3 hold for some continuous transitivity law f(·, ·). Then
+there exists a symmetric continuous random variable with full support and CDF σ(·) s.t.
+
+H(x1, x3) = σ
+ 
+σ−1(H(x1, x2)) + σ−1(H(x2, x3))
+
+.
+
+Moreover, there exists some atomic rule hinner : X →R such that H(·, ·) can be factored as
+
+H(x1, x2) = σ (hinner(x1) −hinner(x2)) .
+
+3. Unconditional Factor Model: Suppose as in item 2, and also axiom 4 (NC). Then there exist
+inner functions hi
+inner : Xi →R for i ∈[d] such that the atomic rule hinner(·) and decision rule
+H(x1, x2) can be factored as
+
+i=1
+hi
+inner(x(i)) ,
+H(x1, x2) = houter
+ d
+X
+
+d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+
+.
+
+hinner(x) =
+
+4. Conditional Factor Model: Suppose as in item 2, and also axiom 5 (CIC). Then there exist
+conditional inner functions hi,·
+inner :Xi →R for i ∈[d] and conditional features (context) ω ⊆[d],
+ωi = ω \ {i}, such that
+
+H(x1, x2) = houter
+ d
+X
+
+i=1
+h
+i,x
+ωi
+1
+inner (x(i)
+1 ) −h
+i,x
+ωi
+2
+inner (x(i)
+2 )
+
+.
+
+Item 1 shows that axiom 1 is sufficient to reduce binary choices to a function of a difference of atomic
+predictions for continuous transitivity laws f(·, ·), i.e., to H(x1, x2) = houter(hinner(x1)−hinner(x2)),
+thus recovering the two-stage modeling process described in section 2.1. However, there is little
+structure beyond this: Such a factoring exists, but it is by no means unique, and it may well be
+intransitive. Item 2 then imposes weak transitivity through axiom 3, additional continuity structure
+through axiom 3, and paired with continuity of the transitivity law f(·, ·), we may conclude that
+houter(·) is a sigmoid function (CDF). Axioms 4–5 are then needed to control feature interactions, and
+dictate a two-stage model structure wherein each feature is processed individually or conditionally.
+
+Intuitively, with σ-transitivity, we require that transitive probabilities can be computed via addition
+within the sigmoid. Thus, if both predictions of probability at least 1
+
+2, a prediction with probability
+p ≥1
+
+2 produces a positive value of σ−1(p); the certainty of transitive predictions grows when both
+values have the same sign. In the parlance of generalized linear models, σ−1 plays the role of a link
+function. Bradley-Terry models, such as logistic regressors, employ the logistic sigmoid, but other
+sigmoids, such as the Gaussian CDF (with probit link function) are also popular, e.g., in GLMs [46].
+
+We now describe strong assumptions that may only be appropriate in specific real-world domains
+but nonetheless produce specific properties for the hypothesis class of editing function Hinner.
+
+Definition 2.5 (Assumptions on Binary Preference Models). We state assumptions on H that are
+suitable for discrete or continuous domains. These discrete properties must apply to all x1, x2 ∈X.
+
+6
+
+1. σ-Linearity: There exists some w ∈Rd such that σ−1 ◦H(x1, x2) = w · (x1 −x2).
+2. Monotonicity: If x1 ⪯x2, then H(x1, x2) ≤1
+
+2.
+
+Theorem 2.6 (Axiomatic Models). Suppose as in theorem 2.4 item 3. Then the class of feasible
+decision rules can be factored as
+
+H =
+n
+x1, x2 7→σ
+ d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+  hi
+inner ∈Hi
+o
+.
+
+The following additional assumptions further restrict each Hi.
+
+1. Suppose σ-linearity. Then Hi = {x 7→wx|w ∈R}, and moreover H = {x1, x2 7→σ(w · (x1 −
+x2)) | w ∈Rd}.
+2. Suppose monotonicity. Then Hi = {h : R →R | x ≤y =⇒h(x) ≤h(y)}.
+3. Multivariate Monotonic Models: If we assume monotonicity but relax noninteractive composi-
+tionality, then H = {x1, x2 7→σ(h(x1) −h(x2)) | h : X →R s.t. ⃗x ⪯⃗y =⇒h(⃗x) ≤h(⃗y)}.
+
+From this perspective, we derive a few valuable insights: Logistic regression with nonnegative
+weights is abstractly characterized by Bradley-Terry aggregation (σ(u) = logistic(u)) and linearity
+(and implicitly implies noninteractivity and monotonicity). If linearity is relaxed to monotonic-
+ity, we obtain the class of univariate monotonic models, and subsequently when noninteractivity
+is relaxed, we obtain univariate monotonic models with conditional interactions. Similarly, probit
+regression is characterized by taking σ(u) = Φ(u), i.e., the Gaussian CDF function, and linearity.
+
+Extending Pairwise Comparisons to n-Way Choice We focus on binary preference elicitation
+because it is a well-studied task in the decision-making literature. To extend our binary preference
+framework to learn probabilistic rankings over n items, we use the choice axiom of Luce et al. [45]:
+Introducing additional items should not change the probability ratio of choosing x1 to choosing x2,
+Without WT, there are
+ n
+2
+
+degrees of freedom (DoF) to complementary binary preferences, and
+a probabilistic ranking that accords with these binary preferences in general does not exist (e.g.,
+preferences over rocks-paper-scissors cannot accord with the choice axiom). However, with WT,
+there are only n−1 DoF, as a tree of predictions spanning n items can be completed via transitivity.
+
+Theorem 2.7 (Proportionality of Choice). Suppose a probabilistic decision rule over n ≥3 items
+that obeys the choice axiom. Then H(·, ·) admits a σ-transitive factoring with logistic σ.
+
+Theorem 2.7 uniquely characterizes the Bradley-Terry model, but is only interesting insofar as the
+model is believable. Alternative models of n-way decision making are also well-studied, such as
+noisy observation, where utility + noise is observed for each alternative, and the largest observation
+wins, resulting in a probability distribution over outcomes. In particular, the Bradley-Terry model
+arises (non-uniquely) from homoskedastic Gumbel noise, but of course the Thurstone–Mosteller
+model [68, 48] arises from homoskedastic Gaussian noise (hence the probit link function), and
+from this perspective, σ-transitivity can be generalized to n-way decision models whenever the
+distribution with CDF σ can be expressed as the difference of two i.i.d. random variables.
+
+Overall, with reasonable domain-specific assumptions, we recover other standard modeling classes
+from our two-stage modeling framework, highlighting the expressive power of our modeling class.
+Importantly, assumptions like linearity and monotonicity are domain-dependent and need to be qual-
+itatively justified for the problem context. Classes, like logistic regressors, that implicitly encode
+these assumptions may not generate cognitively-faithful models when the human decision process
+violates these assumptions. Instead, we based our modeling class on generic axioms of human
+decision processes, which can be further constrained by domain-specific assumptions as necessary.
+
+Additionally, our axiomatic approach significantly constrains the set of feasible models, thus sim-
+plifying the model class. For instance, suppose we are given a pairwise comparison (x1, x2) ∈R2d.
+Assuming feature independence, a generic supervised learning approach would have at least 2d pa-
+rameters (based on input size). In comparison, due to the “complementarity” axiom, our approach
+constructs d editing functions, halving the parameter space, and implicitly enforcing symmetry over
+the two presented options, which is arguably more cognitively plausible than learning a model that
+processes the two options independently, essentially repeating the logic for each.
+
+7
+
+3
+Empirical Analysis on Kidney Allocation Data
+
+We test our modeling strategy to learn moral judgment processes for kidney transplant allocation,
+where prior works study moral judgments regarding the allocation of kidneys to patients based on
+their medical attributes (e.g., transplant outcomes) and non-medical attributes (e.g., dependents and
+lifestyles) [4, 36, 10]. For this assessment, we use both real-world and synthetic data.
+
+Real-world dataset We use the dataset provided by Boerstler et al. [4], which spans two studies
+where multiple participants were presented with several kidney allocation scenarios (15 participants
+in Study One and 40 in Study Two). In both studies, each kidney allocation scenario comprises
+a pairwise comparison between patients A and B (see figure 4 for an example). Participants were
+instructed to choose which patient should be given an available kidney. In Study One, the patient
+features presented are the patient’s number of dependents, projected life years gained from the trans-
+plant (LYG), alcoholic drinks per day, and number of crimes committed. In Study Two, the patient
+features are the patient’s number of elderly dependents, LYG, years waiting for the transplant, weekly
+work hours post-transplant, and obesity level. Other dataset details are presented in Appendix B.
+
+Synthetic dataset We also created a synthetic dataset representing multiple simulated decision-
+makers. This dataset contains pairwise comparisons of hypothetical kidney patients described using
+four features — number of dependents, LYG, years waiting, and number of crimes committed.
+The goal is to simulate decision-makers who explicitly use the heuristics observed in prior studies
+to assess how well our model and other baselines recover these heuristics. The heuristics are taken
+from Keswani et al. [36], who provide user-reported qualitative accounts of decision rules people use
+for kidney allocation decisions. Using their observations, we create five simulated decision-makers,
+DM1–DM5, each using different decision rules over the presented patient features. For instance,
+DM1 decides between A and B with the following process: (a) assign 1 point to the patient with a
+higher LYG; (b) assign 1 point to each patient with dependents; (c) assign 1 point to each patient
+on the waiting list for >6 years; (d) add N(0, 1) noise (i.e., a homoskedastic Thurstone-Mosteller
+process) to the difference of patient scores, and choose A if difference> 0 and B otherwise (DM1’s
+process is mathematically described in figure 3). Other simulated decision-makers (DM2–DM5)
+also use various heuristics, such as thresholding, diminishing returns, and tallying (described in
+appendix B). Our dataset contains 1000 pairwise comparisons from each simulated DM.
+
+Methodology and Baselines We compare our model to several learning approaches, namely
+Bradley-Terry and Drift Diffusion models from cognitive science literature, and common supervised
+learning approaches, such as logistic and elastic-net classifiers, SVM, generalized additive models
+(GAM) with spline terms, decision trees, multi-layer perception (MLP), k-NN, and random forests.
+Note that the Drift Diffusion requires access to reaction times per scenario (and hence, is not run for
+the simulated DMs), while all other models (including ours) do not use reaction time information.
+Among these, we will use logistic models and decision tree models as the “interpretable” methods
+to compare our model’s interpretability to. Since moral judgments can differ significantly across
+individuals, we run and test all models over individual participant-level data. For each decision-
+maker (real or simulated), we use a random 70-30 train-test split and report the summary statistics
+of predictive accuracy over test partitions across 20 repetitions.
+For our framework, we minimize
+the predictive loss to learn the editing functions h·,·
+inner (which assign score∈R to each feature value),
+constraining all h·,·
+inner to be monotonic (since all features in our dataset can be seen to impact the final
+choice monotonically) We implement two variants of this framework: (A) with cross-entropy loss
+and σ(x) = (1 + e−x)−1, and (B) with hinge loss and σ as the identity function. The first variant is
+aligned with the probabilistic framework of Thm 2.4, while the second framework is better suited to
+assessing our learned model on the “hard classification” metric of 0-1 predictive accuracy. Context
+ω is limited to one feature for the real-world datasets, chosen using cross-validation. It is kept empty
+for the synthetic dataset. Additional implementation details are provided in Appendix B.
+
+Results Across all datasets, we observe that the models returned by our strategy achieve high accu-
+racy and provide deeper insight into decision-making processes than other baselines.
+
+Aggregated Performance. The performance of all models across the decision-maker pools is pre-
+sented in Table 1. Overall, across both real-world and synthetic data, our framework produces
+models with at least the accuracy of all baselines. Individual-level performance is presented in Ap-
+pendix B. Additionally, editing functions hinner learned for the decision-makers provide insight into
+how they process the input features to reach their final decision. We demonstrate this interpretability
+
+8
+
+Average Accuracy (stddev)
+Model
+Study One
+Study Two
+Simulated
+
+Computational cognitive models
+Drift-Diffusion
+.89 (.05)
+.88 (.05)
+–
+Bradley-Terry
+.90 (.06)
+.78 (.06)
+.77 (.06)
+Supervised learning models
+Logistic Clf
+.90 (.06)
+.89 (.05)
+.85 (.07)
+Elastic Net
+.89 (.04)
+.88 (.05)
+.85 (.07)
+SVM
+.89 (.06)
+.89 (.05)
+.85 (.07)
+GAM
+.87 (.09)
+.84 (.11)
+.88 (.08)
+Decision Tree
+.83 (.06)
+.79 (.06)
+.82 (.11)
+k-NN
+.85 (.06)
+.82 (.05)
+.79 (.08)
+MLP
+.89 (.05)
+.86 (.06)
+.87 (.08)
+Random Forest
+.86 (.05)
+.85 (.04)
+.87 (.08)
+
+Our Models
+w/ cross-entropy loss
+.90 (.06)
+.90 (.05)
+.89 (.10)
+w/ hinge loss
+.90 (.06)
+.89 (.06)
+.89 (.08)
+
+Table 1: Performance of all models on kidney allocation datasets.
+
+Figure 2: Interpretable models learned for Participant 4 of Study One. For our two-stage model and logistic
+classifier, the contributions of each feature to the final choice are individually computed (using hinner(·) in our
+case or feature coefficients for the logistic classifier) and plotted here. For the decision tree, we present only
+the first three layers of the tree. Note the differences in model interpretation using different strategies, with our
+model providing insight into the heuristics used by this participant.
+
+through case studies of the editing functions learned for the simulated decision-maker DM1 and a
+real-world participant from Study One.
+
+Participant 4 in Study One. The two-stage model learned for participant 4 (w/ hinge loss) is il-
+lustrated in figure 2 (top row). The editing function plots show the following nuances of their
+decision-making process for pairwise comparisons of kidney patients: (a) number of dependents
+and number of alcoholic drinks are the two most important features, as reflected by the large choice
+contributions of these features; (b) number of past crimes is considered mostly irrelevant by this
+participant; (c) life decades gained is relevant only when the patient has zero dependents, indicating
+a conditional interaction between these two features; (d) for number of dependents, a difference of
+1 vs 0 dependents is much more significant to the final choice than a difference of 2 vs 1 dependents
+— approximately a threshold decision rule such that any non-zero number of dependents contributes
+equally; (e) similarly for life decades gained and number of alcoholic drinks, for certain conditions
+on number of dependents, the participant employs threshold decision rules. Our model is able to
+learn all of these decision-making nuances with an accuracy of 0.78 (± 0.05), but a trained logistic
+classifier (bottom-left in figure 2) has a lower accuracy of 0.76 (± 0.04) and only uncovered points
+
+9
+
+Figure 3: Models learned for the simulated decision-maker DM1. On the top left, we present the mathematical
+description of the DM1’s process. Once again, we present each model’s interpretation of the process used by
+the decision-maker. Observe that our two-stage model most accurately captures the simulated process.
+
+(a) and (b) above, while a trained decision-tree model (bottom-right in figure 2) has an accuracy of
+0.70 (± 0.03) and only uncovered points (a), (c), and (d).
+
+Performance for the simulated decision-maker DM1. For DM1, figure 3 (top right) shows how our
+model recovers the rules used by this decision-maker. E.g., for the feature number for dependents,
+h#deps
+inner
+captures the increase in choice contribution when this feature has a non-zero value, and for
+the years waiting feature, hwait yrs
+inner
+learns the increased contribution of values exceeding 6 years. Both
+successfully represent the threshold functions used in DM1. Note that neither of these observations
+can be easily inferred from logistic or decision tree models (bottom row of figure 3). Our model is
+also more accurate (0.76 ± 0.02) than logistic (0.74 ± 0.02) and decision tree (0.68 ± 0.04) models.
+Appendix B shows our model’s performance for other simulated decision-makers.
+
+Overall, our models provide a better understanding of the decision-making processes without sacri-
+ficing predictive accuracy.
+
+4
+Discussion, Limitations, and Future Work
+
+This work provides a modeling strategy to learn human decision processes from pairwise compar-
+isons. The primary goal of this strategy is fidelity, such that best-fit models from these classes are
+more faithful to humans’ actual decision-making than standard hypothesis spaces. Our theoreti-
+cal analysis demonstrates that these classes emerge from natural decision-making axioms, and our
+empirical analysis shows that greater fidelity would lead to greater model accuracy in some cases.
+
+The advantages of cognitively-faithful models will depend on the application. In applications like
+online recommender systems, it may be sufficient to predict human behavior accurately, without sim-
+ulating their actual decision processes. However, cognitively-faithful models would be desirable in
+other high-stakes AI domains (e.g., healthcare and sentencing), where the interpretability and align-
+ment of AI’s decisions with the users is pivotal in establishing trust in AI [28]. Cognitively-faithful
+models would also be preferable in domains with no “ground truth” (like the kidney allocation do-
+main), where model validation requires the user to understand and evaluate the model’s decision
+process. Lastly, cognitively-faithful models are essential for any use of AI in a moral domain, since
+stakeholders expect an AI to justify its moral decisions in a similar manner and to the same ex-
+tent as humans [42]. For any AI application where one or more of the above criteria are satisfied,
+cognitively-faithful models would be preferable over generic modeling methods. Yet, the choice to
+use cognitively-faithful models should be informed by stakeholders. Our axiomatic analysis can be
+viewed as a technical tool to allow practitioners to make better-informed choices about properties of
+the models they build to assist their users, as it is easy to qualitatively assess whether properties like
+transitivity and feature independence are desirable when simulating a user’s decision processes.
+
+At the same time, not all cognitive processes are suitable to replicate in a computational model,
+such as heuristics that people employ when facing decision fatigue [60] and cognitive or framing
+biases that negatively affect their judgments [70]. While these heuristics should not be a part of the
+computational model that assists the user in future decision-making, our two-stage framework could
+
+10
+
+still be used to learn which heuristic rules are present in the data, to be able to “correct” for them in
+the learned computational model, e.g., by replacing the heuristic in the learned model with a more
+appropriate user-specified decision rule. Hence, even in this case, learning the cognitive processes
+is useful in correcting the identified biases when creating an “ideal” cognitively faithful model.
+
+There are also certain limitations of our approach. The interpretability features of our framework
+would need further validation through real-world user studies. While this work provides a proof-
+of-concept for a computational framework to learn from human decisions, future user studies can
+help assess the extent to which users understand and trust the learned two-stage models. Our axioms
+characterize the “ideal” decision-making process of an individual; i.e., the one they would prefer to
+follow in the absence of any internal/external constraints and/or the one that describes their judg-
+ments about what “should be done”. However, human decisions are known to deviate from the ideal
+in many ways, e.g., well-known transitivity and complementarity violations [72], among others.
+Future work can explore ways to extend our two-stage hypothesis classes to quantify deviations of
+one’s “ideal” judgments from their implemented choices.
+Our empirical analysis of kidney allo-
+cation judgments may also be limited, since these are hypothetical moral judgments, which could
+differ from real-world moral decisions [75]. While the modeling strategy should still be applicable
+for real-world decisions, the impact of this practical limitation can be investigated in future work.
+
+References
+
+[1] Icek Ajzen. The social psychology of decision making. Social psychology: Handbook of basic
+principles, pages 297–325, 1996.
+
+[2] Edmond Awad, Sohan Dsouza, Richard Kim, Jonathan Schulz, Joseph Henrich, Azim Shariff,
+Jean-Franc¸ois Bonnefon, and Iyad Rahwan. The moral machine experiment. Nature, 563
+(7729):59–64, 2018.
+
+[3] Moshe Ben-Akiva, Daniel McFadden, Kenneth Train, et al. Foundations of stated preference
+elicitation: Consumer behavior and choice-based conjoint analysis. Foundations and Trends®
+in Econometrics, 10(1-2):1–144, 2019.
+
+[4] Kyle Boerstler, Vijay Keswani, Lok Chan, Jana Schaich Borg, Vincent Conitzer, Hoda Heidari,
+and Walter Sinnott-Armstrong. On the stability of moral preferences: A problem with compu-
+tational elicitation methods. In Proceedings of the AAAI/ACM Conference on AI, Ethics, and
+Society, volume 7, pages 156–167, 2024.
+
+[5] David D Bourgin, Joshua C Peterson, Daniel Reichman, Stuart J Russell, and Thomas L Grif-
+fiths. Cognitive model priors for predicting human decisions. In International conference on
+machine learning, pages 5133–5141. PMLR, 2019.
+
+[6] Ralph Allan Bradley and Milton E Terry. Rank analysis of incomplete block designs: I. the
+method of paired comparisons. Biometrika, 39(3/4):324–345, 1952.
+
+[7] Eduard Brandst¨atter, Gerd Gigerenzer, and Ralph Hertwig. The priority heuristic: making
+choices without trade-offs. Psychological review, 113(2):409, 2006.
+
+[8] Henry Brighton. Robust inference with simple cognitive models. In AAAI spring symposium:
+Between a rock and a hard place: Cognitive science principles meet AI-hard problems, pages
+17–22, 2006.
+
+[9] Tara Capel and Margot Brereton. What is human-centered about human-centered ai? a map
+of the research landscape. In Proceedings of the 2023 CHI conference on human factors in
+computing systems, pages 1–23, 2023.
+
+[10] Lok Chan, Walter Sinnott-Armstrong, Jana Schaich Borg, and Vincent Conitzer. Should re-
+sponsibility affect who gets a kidney? Responsibility and Healthcare, page 35, 2024.
+
+[11] Gary Charness, Uri Gneezy, and Alex Imas. Experimental methods: Eliciting risk preferences.
+Journal of economic behavior & organization, 87:43–51, 2013.
+
+[12] Li Chen and Pearl Pu. Survey of preference elicitation methods. 2004.
+
+11
+
+[13] Paul F Christiano, Jan Leike, Tom Brown, Miljan Martic, Shane Legg, and Dario Amodei.
+Deep reinforcement learning from human preferences. Advances in neural information pro-
+cessing systems, 30, 2017.
+
+[14] Molly J Crockett. Computational modeling of moral decisions. In The social psychology of
+morality, pages 71–90. Routledge, 2016.
+
+[15] Jean Czerlinski, Gerd Gigerenzer, and Daniel G Goldstein. How good are simple heuristics?
+In Simple heuristics that make us smart, pages 97–118. Oxford University Press, 1999.
+
+[16] Robyn M Dawes. The robust beauty of improper linear models in decision making. American
+Psychologist, 34(7), 1979.
+
+[17] Michael Feffer, Michael Skirpan, Zachary Lipton, and Hoda Heidari. From preference elicita-
+tion to participatory ml: A critical survey & guidelines for future research. In Proceedings of
+the 2023 AAAI/ACM Conference on AI, Ethics, and Society, pages 38–48, 2023.
+
+[18] Matan Fintz, Margarita Osadchy, and Uri Hertz. Using deep learning to predict human deci-
+sions and using cognitive models to explain deep learning models. Scientific reports, 12(1):
+4736, 2022.
+
+[19] Rachel Freedman, Jana Schaich Borg, Walter Sinnott-Armstrong, John P Dickerson, and Vin-
+cent Conitzer. Adapting a kidney exchange algorithm to align with human values. Artificial
+Intelligence, 283:103261, 2020.
+
+[20] Yoav Ganzach. Nonlinear models of clinical judgment: Communal nonlinearity and nonlinear
+accuracy. Psychological Science, 12(5):403–407, 2001.
+
+[21] Luise Ge, Daniel Halpern, Evi Micha, Ariel D Procaccia, Itai Shapira, Yevgeniy Vorob-
+eychik, and Junlin Wu.
+Axioms for AI alignment from human feedback.
+arXiv preprint
+arXiv:2405.14758, 2024.
+
+[22] Gerd Gigerenzer and Wolfgang Gaissmaier. Heuristic decision making. Annual review of
+psychology, 62(2011):451–482, 2011.
+
+[23] Gerd Gigerenzer, Peter M Todd, the ABC Research Group, et al. Simple heuristics that make
+us smart. Oxford University Press, 2000.
+
+[24] Shengbo Guo and Scott Sanner. Real-time multiattribute bayesian preference elicitation with
+pairwise comparison queries. In Proceedings of the Thirteenth International Conference on
+Artificial Intelligence and Statistics, pages 289–296. JMLR Workshop and Conference Pro-
+ceedings, 2010.
+
+[25] Trevor J Hastie. Generalized additive models. Statistical models in S, pages 249–307, 2017.
+
+[26] Robert C Holte. Very simple classification rules perform well on most commonly used datasets.
+Machine learning, 11:63–90, 1993.
+
+[27] Evan Hubinger, Chris van Merwijk, Vladimir Mikulik, Joar Skalse, and Scott Garrabrant.
+Risks from learned optimization in advanced machine learning systems.
+arXiv preprint
+arXiv:1906.01820, 2019.
+
+[28] Alon Jacovi, Ana Marasovi´c, Tim Miller, and Yoav Goldberg. Formalizing trust in artificial
+intelligence: prerequisites, causes and goals of human trust in ai. In Proceedings of the 2021
+ACM conference on fairness, accountability, and transparency, pages 624–635, 2021.
+
+[29] Jiaming Ji, Tianyi Qiu, Boyuan Chen, Borong Zhang, Hantao Lou, Kaile Wang, Yawen Duan,
+Zhonghao He, Jiayi Zhou, Zhaowei Zhang, et al. Ai alignment: A comprehensive survey.
+arXiv preprint arXiv:2310.19852, 2023.
+
+[30] Ruili Jiang, Kehai Chen, Xuefeng Bai, Zhixuan He, Juntao Li, Muyun Yang, Tiejun Zhao,
+Liqiang Nie, and Min Zhang.
+A survey on human preference learning for large language
+models. arXiv preprint arXiv:2406.11191, 2024.
+
+12
+
+[31] Caroline M Johnston, Patrick Vossler, Simon Blessenohl, and Phebe Vayanos.
+Deploying
+a robust active preference elicitation algorithm on mturk: Experiment design, interface, and
+evaluation for covid-19 patient prioritization. In Proceedings of the 3rd ACM Conference on
+Equity and Access in Algorithms, Mechanisms, and Optimization, pages 1–10, 2023.
+
+[32] Daniel Kahneman and Shane Frederick.
+A model of heuristic judgment.
+The Cambridge
+handbook of thinking and reasoning, 267:293, 2005.
+
+[33] Daniel Kahneman and Amos Tversky. Prospect theory: An analysis of decision under risk.
+In Handbook of the fundamentals of financial decision making: Part I, pages 99–127. World
+Scientific, 2013.
+
+[34] Saikishore Kalloori, Francesco Ricci, and Rosella Gennari. Eliciting pairwise preferences in
+recommender systems. In Proceedings of the 12th acm conference on recommender systems,
+pages 329–337, 2018.
+
+[35] Timo Kaufmann, Paul Weng, Viktor Bengs, and Eyke H¨ullermeier. A survey of reinforcement
+learning from human feedback. arXiv preprint arXiv:2312.14925, 10, 2023.
+
+[36] Vijay Keswani, Vincent Conitzer, Walter Sinnott-Armstrong, Breanna K Nguyen, Hoda Hei-
+dari, and Jana Schaich Borg. Can ai model the complexities of human moral decision-making?
+a qualitative study of kidney allocation decisions. arXiv preprint arXiv:2503.00940, 2025.
+
+[37] Richard Kim, Max Kleiman-Weiner, Andr´es Abeliuk, Edmond Awad, Sohan Dsouza, Joshua B
+Tenenbaum, and Iyad Rahwan. A computational model of commonsense moral decision mak-
+ing. In Proceedings of the 2018 AAAI/ACM Conference on AI, Ethics, and Society, pages
+197–203, 2018.
+
+[38] Jan Kubanek. Optimal decision making and matching are tied through diminishing returns.
+Proceedings of the National Academy of Sciences, 114(32):8499–8504, 2017.
+
+[39] Min Kyung Lee, Daniel Kusbit, Anson Kahng, Ji Tae Kim, Xinran Yuan, Allissa Chan, Daniel
+See, Ritesh Noothigattu, Siheon Lee, Alexandros Psomas, et al.
+Webuildai: Participatory
+framework for algorithmic governance. Proceedings of the ACM on human-computer interac-
+tion, 3(CSCW):1–35, 2019.
+
+[40] Jan Leike, David Krueger, Tom Everitt, Miljan Martic, Vishal Maini, and Shane Legg. Scalable
+agent alignment via reward modeling: a research direction. arXiv preprint arXiv:1811.07871,
+2018.
+
+[41] Sarah Lichtenstein and Paul Slovic. The construction of preference: An overview. The con-
+struction of preference, 1:1–40, 2006.
+
+[42] Gabriel Lima, Nina Grgi´c-Hlaˇca, and Meeyoung Cha. Human perceptions on moral responsi-
+bility of ai: A case study in ai-assisted bail decision-making. In Proceedings of the 2021 CHI
+conference on human factors in computing systems, pages 1–17, 2021.
+
+[43] Baihan Lin, Djallel Bouneffouf, and Guillermo Cecchi. Predicting human decision making in
+psychological tasks with recurrent neural networks. PloS one, 17(5):e0267907, 2022.
+
+[44] Enrico Liscio, Luciano Cavalcante Siebert, Catholijn M. Jonker, and Pradeep K. Murukan-
+naiah.
+Value preferences estimation and disambiguation in hybrid participatory systems.
+CoRR, abs/2402.16751, 2024.
+doi: 10.48550/ARXIV.2402.16751.
+URL https:
+//doi.org/10.48550/arXiv.2402.16751.
+
+[45] R Duncan Luce et al. Individual choice behavior, volume 4. Wiley New York, 1959.
+
+[46] Peter McCullagh. Generalized linear models. Routledge, 2019.
+
+[47] Henry Montgomery.
+Decision rules and the search for a dominance structure: Towards a
+process model of decision making. In Advances in psychology, volume 14, pages 343–369.
+Elsevier, 1983.
+
+13
+
+[48] Frederick Mosteller. Remarks on the method of paired comparisons: I. the least squares so-
+lution assuming equal standard deviations and equal correlations. Psychometrika, 16(1):3–9,
+1951.
+
+[49] Subhojyoti Mukherjee, Anusha Lalitha, Kousha Kalantari, Aniket Anand Deshmukh, Ge Liu,
+Yifei Ma, and Branislav Kveton. Optimal design for human preference elicitation. Advances
+in Neural Information Processing Systems, 37:90132–90159, 2024.
+
+[50] Andrew Y Ng, Stuart Russell, et al. Algorithms for inverse reinforcement learning. In Icml,
+volume 1, page 2, 2000.
+
+[51] Ritesh Noothigattu, Snehalkumar Gaikwad, Edmond Awad, Sohan Dsouza, Iyad Rahwan,
+Pradeep Ravikumar, and Ariel Procaccia. A voting-based system for ethical decision mak-
+ing. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 32, 2018.
+
+[52] Ritesh Noothigattu, Djallel Bouneffouf, Nicholas Mattei, Rachita Chandra, Piyush Madan,
+Kush R Varshney, Murray Campbell, Moninder Singh, and Francesca Rossi. Teaching ai agents
+ethical values using reinforcement learning and policy orchestration. IBM Journal of Research
+and Development, 63(4/5):2–1, 2019.
+
+[53] Ritesh Noothigattu, Dominik Peters, and Ariel D Procaccia. Axioms for learning from pairwise
+comparisons. Advances in Neural Information Processing Systems, 33:17745–17754, 2020.
+
+[54] Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin,
+Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, et al. Training language models to
+follow instructions with human feedback. Advances in neural information processing systems,
+35:27730–27744, 2022.
+
+[55] Alexander Pan, Kush Bhatia, and Jacob Steinhardt. The effects of reward misspecification:
+Mapping and mitigating misaligned models. In International Conference on Learning Repre-
+sentations, 2022.
+
+[56] John W Payne. Task complexity and contingent processing in decision making: An information
+search and protocol analysis. Organizational behavior and human performance, 16(2):366–
+387, 1976.
+
+[57] John W Payne, James R Bettman, and Eric J Johnson. Adaptive strategy selection in decision
+making. Journal of experimental psychology: Learning, Memory, and Cognition, 14(3):534,
+1988.
+
+[58] Emil Persson, Arvid Erlandsson, Paul Slovic, Daniel V¨astfj¨all, and Gustav Tingh¨og.
+The
+prominence effect in health-care priority setting. Judgment and Decision Making, 17(6):1379–
+1391, 2022.
+
+[59] Joshua C Peterson, David D Bourgin, Mayank Agrawal, Daniel Reichman, and Thomas L
+Griffiths. Using large-scale experiments and machine learning to discover theories of human
+decision-making. Science, 372(6547):1209–1214, 2021.
+
+[60] Grant A Pignatiello, Richard J Martin, and Ronald L Hickman Jr. Decision fatigue: A concep-
+tual analysis. Journal of health psychology, 25(1):123–135, 2020.
+
+[61] Ori Plonsky, Ido Erev, Tamir Hazan, and Moshe Tennenholtz. Psychological forest: Predicting
+human behavior. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 31,
+2017.
+
+[62] Rafael Rafailov, Archit Sharma, Eric Mitchell, Christopher D Manning, Stefano Ermon, and
+Chelsea Finn. Direct preference optimization: Your language model is secretly a reward model.
+Advances in Neural Information Processing Systems, 36:53728–53741, 2023.
+
+[63] Avi Rosenfeld, Inon Zuckerman, Amos Azaria, and Sarit Kraus. Combining psychological
+models with machine learning to better predict people’s decisions. Synthese, 189(Suppl 1):
+81–93, 2012.
+
+14
+
+[64] Anuj K Shah and Daniel M Oppenheimer. Heuristics made easy: an effort-reduction frame-
+work. Psychological bulletin, 134(2):207, 2008.
+
+[65] ¨Ozg¨ur S¸ims¸ek and Marcus Buckmann. Learning from small samples: An analysis of simple
+decision heuristics. Advances in neural information processing systems, 28, 2015.
+
+[66] Walter Sinnott-Armstrong, Joshua August Skorburg, et al. How ai can aid bioethics. Journal
+of Practical Ethics, 9(1), 2021.
+
+[67] Jonathan Stray, Ivan Vendrov, Jeremy Nixon, Steven Adler, and Dylan Hadfield-Menell. What
+are you optimizing for? aligning recommender systems with human values. arXiv preprint
+arXiv:2107.10939, 2021.
+
+[68] LL Thurstone. A law of comparative judgment. Psychological Review, 34(4):273, 1927.
+
+[69] Amos Tversky. Elimination by aspects: A theory of choice. Psychological review, 79(4):281,
+1972.
+
+[70] Amos Tversky and Daniel Kahneman. The framing of decisions and the psychology of choice.
+science, 211(4481):453–458, 1981.
+
+[71] Amos Tversky, Shmuel Sattath, and Paul Slovic. Contingent weighting in judgment and choice.
+Psychological review, 95(3):371, 1988.
+
+[72] Amos Tversky, Paul Slovic, and Daniel Kahneman. The causes of preference reversal. The
+American Economic Review, pages 204–217, 1990.
+
+[73] Atsushi Ueshima and Hiroki Takikawa. Discovering novel social preferences using simple
+artificial neural networks. Collabra: Psychology, 10(1), 2024.
+
+[74] Christopher Wiedeman, Ge Wang, and Uwe Kruger. Modeling of moral decisions with deep
+learning. Visual Computing for Industry, Biomedicine, and Art, 3(1):27, 2020.
+
+[75] Hongbo Yu, Luis Sebastian Contreras-Huerta, Annayah MB Prosser, Matthew AJ Apps, Wil-
+helm Hofmann, Walter Sinnott-Armstrong, and Molly J Crockett. Neural and cognitive signa-
+tures of guilt predict hypocritical blame. Psychological Science, 33(11):1909–1927, 2022.
+
+[76] Manzil Zaheer, Satwik Kottur, Siamak Ravanbakhsh, Barnabas Poczos, Russ R Salakhutdinov,
+and Alexander J Smola. Deep sets. Advances in neural information processing systems, 30,
+2017.
+
+[77] Simon Zhuang and Dylan Hadfield-Menell. Consequences of misaligned ai. Advances in
+Neural Information Processing Systems, 33:15763–15773, 2020.
+
+[78] Daniel M Ziegler, Nisan Stiennon, Jeffrey Wu, Tom B Brown, Alec Radford, Dario Amodei,
+Paul Christiano, and Geoffrey Irving. Fine-tuning language models from human preferences.
+arXiv preprint arXiv:1909.08593, 2019.
+
+[79] Milan Zorman, Milojka Molan ˇStiglic, Peter Kokol, and Ivan Malˇci´c. The limitations of deci-
+sion trees and automatic learning in real world medical decision making. Journal of medical
+systems, 21(6):403–415, 1997.
+
+15
+
+A
+Proof Compendium
+
+Theorem 2.4 (Axiomatic Factoring Characterization).
+
+1. Atomic Model Suppose axiom 1, and also that X is a countable domain. Then there exists an
+atomic rule hinner : X →R and houter : R →[0, 1] s.t. H(·, ·) can be factored as
+
+H(x1, x2) = houter (hinner(x1) −hinner(x2)) .
+
+2. σ(·)-Transitivity Suppose axioms 2–3 hold for some continuous transitivity law f(·, ·). Then
+there exists a symmetric continuous random variable with full support and CDF σ(·) s.t.
+
+H(x1, x3) = σ
+ 
+σ−1(H(x1, x2)) + σ−1(H(x2, x3))
+
+.
+
+Moreover, there exists some atomic rule hinner : X →R such that H(·, ·) can be factored as
+
+H(x1, x2) = σ (hinner(x1) −hinner(x2)) .
+
+3. Unconditional Factor Model: Suppose as in item 2, and also axiom 4 (NC). Then there exist
+inner functions hi
+inner : Xi →R for i ∈[d] such that the atomic rule hinner(·) and decision rule
+H(x1, x2) can be factored as
+
+i=1
+hi
+inner(x(i)) ,
+H(x1, x2) = houter
+ d
+X
+
+d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+
+.
+
+hinner(x) =
+
+4. Conditional Factor Model: Suppose as in item 2, and also axiom 5 (CIC). Then there exist
+conditional inner functions hi,·
+inner :Xi →R for i ∈[d] and conditional features (context) ω ⊆[d],
+ωi = ω \ {i}, such that
+
+H(x1, x2) = houter
+ d
+X
+
+i=1
+h
+i,x
+ωi
+1
+inner (x(i)
+1 ) −h
+i,x
+ωi
+2
+inner (x(i)
+2 )
+
+.
+
+Proof. The structure of this result is a bit convoluted, due to its presentation in four parts. We
+first show item 1 in isolation using a straightforward explicit construction. We then show that the
+conditions of item 2 imply symmetry of the transitivity law, and the assumed addition of continuity
+of f(·, ·) is sufficient to yield item 2.
+
+From there, we address items 3 & 4. Note that because NC is a special case of CIC with condition
+set ω = ∅, we show only item 4, as item 3 is a special case of item 4.
+
+We first show item 1. For countable X, it’s trivially true that each x ∈X can be encoded as a power
+of 2. Then, hinner(x1)−hinner(x2) is then 0 iff x1 = x2, which by axiom 1, necessitates houter(0) = 1
+
+2.
+Otherwise, x1 ̸= x2, and we can recover x1 and x2 uniquely (the larger by rounding the (absolute)
+difference up to a the nearest power of 2, i.e., by taking log2(|hinner(xi) −hinner(xj)|) the smaller
+via subtraction, and the sign indicating which is which). Therefore, using this construction of hinner,
+for an arbitrary mapping between X and Z, we can construct a corresponding houter that reconstructs
+any possible decision rule H(·, ·) over X.
+
+We now show item 2.
+
+We first show that these assumptions imply f(u, v) = f(v, u) for all u, v ∈(0, 1), i.e., the transi-
+tivity law is symmetric. Assume WLOG u ≥1
+
+2 and v ≥1
+
+2, as by complementarity and WT, the
+remaining cases can be derived. Now, select an arbitrary x0 in X. For any ε ∈(0, 1
+
+2), by codomain
+span, there exists an infinite sequence x1, x2, . . . such that H(xi−1, xi) = 1
+
+2 + ε, and moreover, let
+k1, k2 be the smallest integers such that H(x0, xk1) ≥u and H(x0, xk1) ≥v, respectively. Note
+that for any k, H(x0, xk) is an increasing function, achieving limk→∞H(x0, xk) = 1. Furthermore,
+by continuity, in the limit as ε →0, H(x0, xk1) and H(x0, xk2) converge to u and v, respectively.
+However, the grouping of this sequence into a segment of k1 points approximating u and k2 points
+approximating v was arbitrary, and the weak transitivity operator f(·, ·), by construction, must be
+associative. We may thus conclude that, due to continuity and the limit as ε →0, f(u, v) = f(v, u).
+
+Now observe that, by the continuous deep sets theorem (Theorem 7 of [76]), since f(·, ·) is sym-
+metric, there exist continuous functions ρ, ϕ : R →R such that
+
+H(x1, x3) = f(H(x1, x2), H(x2, x3)) = ρ(ϕ ◦H(x1, x2) + ϕ ◦H(x2, x3)) .
+
+16
+
+Assume WLOG that ϕ( 1
+
+2) = 0 (as any shifting to ϕ can be absorbed by ρ in the composition).
+
+Complementarity implies reflexivity, i.e., it holds that H(x1, x1) = 1 −H(x1, x1) = 1
+
+2. Conse-
+quently, we observe the f Now, again by reflexivity, and applying our derived weak transitive law, it
+holds
+
+H(x1, x2) = ρ(ϕ ◦H(x1, x2) + ϕ ◦H(x2, x2))
+
+= ρ(ϕ ◦H(x1, x2))
+ϕ ◦H(x2, x2) = ϕ(1
+
+2) = 0 .
+
+Thus ρ(ϕ(u)) = u for all u ∈(0, 1).
+
+Now, we argue that ϕ(u) + ϕ(1 −u) = 0, which implies ϕ(u) = −ϕ(1 −u). Observe the following
+cancellation: H(x1, x1) = f(H(x1, x2), H(x2, x1)) = ρ(ϕ(u) + ϕ(1 −u)) = ρ(0) =
+1
+2. By
+continuity, and the property ρ(ϕ(u)) = u, this implies that ϕ is either an increasing or a decreasing
+function. Assume now that, WLOG, ϕ (and consequently ρ) are both increasing functions, as output-
+negation of ϕ may be counterbalanced by input-negation of ρ.
+
+To show that ρ and ϕ are true inverses, we require also that ϕ(ρ(v)) = v for all v ∈R. We show
+this by proving that ρ(·) is a strictly increasing continuous function on R →(0, 1). Because ϕ is
+a strictly increasing function, and ρ(ϕ(1)) = 1, clearly ρ(∞) = 1 and ρ is a strictly increasing
+continuous function on the domain (ϕ(0), ϕ(1)). The only issue is that, if ϕ(1) = −ϕ(0) < ∞,
+then ρ is only weakly increasing (constant) over the rest of R. Now, suppose BWOC that ϕ(1) = c
+for some c < ∞. By codomain span and increasingness of ρ, there exist x1, x2, x3, x∞, such that
+H(x1, x2) ̸= H(x1, x3), H(xi, x∞) = 1 for each i, and the weak transitivity law is violated, as
+H(x1, x2) and H(x1, x3) can not possibly both be computed as f(1, 1). NB this impossibility does
+not depend on the functional form we derive: Rather, there is a fundamental incompatibility between
+weak transitivity and prediction with certainty. We thus conclude that the image of ϕ(·) is R, hence ϕ
+and ρ are true inverses, and both strictly monotonically increasing continuous functions. Moreover,
+ρ takes the form of the CDF of a symmetric continuous random variable with support R.
+
+Henceforth, we have operated purely in terms of the predicted probabilities, i.e., H(·, ·), but the
+result requires us to draw conclusions in terms of some hinner(x). We now argue for the existence of
+such a decomposition. Essentially, we “eliminate the middle man,” as
+
+H(x1, x3) = f(H(x1, x2), H(x2, x3))
+WEAK TRANSITIVITY
+= ρ(ϕ ◦H(x1, x2) + ϕ ◦H(x2, x3))
+SEE ABOVE
+= ρ(ϕ ◦H(x1, x2) −ϕ ◦H(x3, x2))
+COMPLEMENTARITY
+
+= ρ ((hinner(x1) −h′
+inner(x2)) −(hinner(x3) −h′
+inner(x2)))
+SEE BELOW
+= ρ (hinner(x1) −hinner(x3)) .
+
+The step marked SEE BELOW is rather subtle, but observe that it must hold BWOC for some func-
+tions hinner, h′
+inner : X →R, as if it did not, then there would exist some x2, x′
+2 such that H(x1, x3) =
+f(H(x1, x2), H(x2, x3)) ̸= f(H(x1, x′
+2), H(x′
+2, x3)), which violates weak transitivity. Essentially,
+due to invertibility, ϕ ◦H(x1, x3) = (hinner(x1) −h′
+inner(x2)) −(hinner(x3) −h′
+inner(x2)) must be
+invariant under choice of x2. In the subsequent step, h′
+inner is eliminated, which effectively illustrates
+that hinner = h′
+inner. Finally, let houter(u) = ϕ(u), and item 1 is complete.
+
+We now show item 4 (noting again that item 3 is a special case).
+
+We first show a technical lemma: we assume x′′′ can be obtained from x1 by changing two inde-
+pendent features not in the condition set ω, each partial change resulting in x′
+2 and x′′
+2 (as in the CIC
+axiom). Observe that
+
+σ−1◦H(x1, x′′′
+2 ) = σ−1◦H(x1, x′
+2) + σ−1◦H(x′
+2, x′′′
+2 ) + σ−1◦H(x1, x′′
+2) + σ−1◦H(x′′
+2, x′′′
+2 ) −σ−1◦H(x1, x′′′
+2 )
+σ-TRANSITIVITY
+
+=
+ 
+σ−1◦H(x1, x′
+2) + σ−1◦H(x1, x′′
+2)
+
++
+ 
+σ−1◦H(x′
+2, x′′′
+2 ) + σ−1◦H(x′′
+2, x′′′
+2 ) + σ−1◦H(x′′′
+2 , x1)
+
+ALGEBRA
+
+=
+ 
+σ−1◦H(x1, x′
+2) + σ−1◦H(x1, x′′
+2)
+
++
+
+1
+2
+ 
+σ−1◦H(x′
+2, x′′′
+2 ) + σ−1◦H(x′′
+2, x′′′
+2 ) + σ−1◦H(x′
+2, x1) + σ−1◦H(x′′
+2, x1)
+
+ALGEBRA
+
+2
+ 
+σ−1◦H(x1, x′
+2) + σ−1◦H(x1, x′′
+2)
+
++ 1
+
+2
+ 
+σ−1◦H(x′
+2, x′′′
+2 ) + σ−1◦H(x′′
+2, x′′′
+2 )
+
+ALGEBRA
+
+= 1
+
+= σ−1◦H(x1, x′
+2) + σ−1◦H(x1, x′′
+2)
+SEE BELOW
+
+17
+
+The final step applies the assumed CIC axiom: The only way this assumption can hold is if
+ 
+σ−1 ◦H(x1, x′
+2) + σ−1 ◦H(x1, x′′
+2)
+
+=
+ 
+σ−1 ◦H(x′
+2, x′′′
+2 ) + σ−1 ◦H(x′′
+2, x′′′
+2 )
+
+.
+This is be-
+cause of symmetry, if we negate the equation, flipping x1 and x′′′
+2 , the same must hold, hence the
+conclusion of the technical lemma.
+
+We now chain the above result to derive the desideratum, i.e., item 2. Given x′
+0, x′
+1, x′
+2, x′
+3, . . . , x′
+d,
+define the transitive chain operator f(·, ·, · · · , ·) as
+
+ d
+X
+
+!
+
+f(x′
+0, x′
+1, x′
+2, x′
+3, . . . , x′
+d) = f(· · · (f(f(x′
+0, x′
+1), x′
+2), · · · ), x′
+d) = houter
+
+i=1
+hinner(x′
+i−1) −hinner(x′
+i)
+
+,
+
+where the RHS applies the structure of σ-transitivity.
+
+Now, take x′i
+ω to be xi
+2 if i ∈ω, xi
+1 otherwise. Define a sequence x′
+j such that each x′
+j takes the
+previous x′
+j−1 (starting with x′
+ω for j = 1) and changes one feature k ̸∈ω from xk
+1 to xk
+2, such that
+x′
+d−|ω| = x2.
+
+We then chain the result over all items not in the condition set ω to obtain
+
+H(x1, x2) = houter (hinner(x1) −hinner(x2))
+BY ASSUMPTION
+= f(x1, x2,ω, x2,(1), x2,(2), . . . , x2,(d−|ω|))
+TRANSITIVITY CHAIN
+
+
+
+
+
+hω,xω
+1
+inner (x1) −hω,xω
+2
+inner (x2) +
+X
+
+i̸∈ω
+hi,ωi
+inner(xi
+1) −hi,ωi
+inner(xi
+2)
+
+
+σ-TRANSITIVITY
+
+= houter
+
+
+
+
+
+i̸∈ω
+hi,ωi
+inner(xi
+1) −hi,ωi
+inner(xi
+2)
+
+X
+
+= houter
+
+
+SEE BELOW
+
+ d
+X
+
+!
+
+.
+LEThi,ωi
+inner(x) = 0 for all i ∈ω
+
+i=1
+hi,ωi
+inner(xi
+1) −hi,ωi
+inner(xi
+2)
+
+= houter
+
+Note that the function hinner may change from step to step above, the conclusion is only that such
+a decomposition exists. To see the step marked SEE BELOW, observe that the terms that condition
+on ω are capable of additively representing any function over ω, so the explicit first term, i.e., that
+involving hω
+inner, may be omitted. Finally, observe that for the special case of noninteractivity, we
+have ω = ∅, thus this first term always cancels out, and the above telescoping decomposition consists
+of exactly d terms, one per feature.
+
+We now show theorem 2.6.
+Theorem 2.6 (Axiomatic Models). Suppose as in theorem 2.4 item 3. Then the class of feasible
+decision rules can be factored as
+
+H =
+n
+x1, x2 7→σ
+ d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+  hi
+inner ∈Hi
+o
+.
+
+The following additional assumptions further restrict each Hi.
+
+1. Suppose σ-linearity. Then Hi = {x 7→wx|w ∈R}, and moreover H = {x1, x2 7→σ(w · (x1 −
+x2)) | w ∈Rd}.
+2. Suppose monotonicity. Then Hi = {h : R →R | x ≤y =⇒h(x) ≤h(y)}.
+3. Multivariate Monotonic Models: If we assume monotonicity but relax noninteractive composi-
+tionality, then H = {x1, x2 7→σ(h(x1) −h(x2)) | h : X →R s.t. ⃗x ⪯⃗y =⇒h(⃗x) ≤h(⃗y)}.
+
+Proof. We first show item 1. We then find that it is more straightforward to show item 3, and finally
+to conclude item 2 as a corollary.
+
+We first show item 1. Recall that the linearity assumption requires that there exists some w such
+that for all x1, x2, it holds
+σ−1 ◦H(x1, x2) = w · (x1 −x2) .
+
+18
+
+Consequently, the set of all feasible decision rules is parameterized by w, in particular, applying
+σ(·) to both sides of the above, it holds
+
+H =
+
+x1, x2 7→σ(w · (x1 −x2))
+ w ∈Rd	
+.
+
+Finally, observe that this multivariate hypothesis class decomposes as
+
+!  hi
+inner(x) = wix, w ∈Rd
+)
+
+ d
+X
+
+(
+
+i=1
+hi
+inner(xi
+1) −hi
+inner(xi
+2)
+
+H =
+
+x1, x2 7→σ
+
+.
+
+From this, we conclude both the form of Hi and of each Hi.
+
+NB σ of σ-linearity and σ-transitivity must be identical over the domain (up to isomorphism), as
+σ-linearity and σ-transitivity would otherwise be mutually incompatible.
+
+We now show item 3.
+
+Recall that we assumed σ-transitivity (theorem 2.4 item 2). It thus holds that
+
+H =
+n
+x(1), x(2) 7→σ
+ d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+  hi
+inner ∈Hi
+o
+.
+
+Monotonicity requires that if x1 ⪯x2, then
+
+H(x1, x2) ≤1
+
+2 .
+
+In our factoring, this is equivalent to
+
+hinner(x1) ≤hinner(x2)
+
+Consequently, the set of all such functions satisfying monotonicity is
+
+H = {x1, x2 7→σ(h(x1) −h(x2)) | h : X →R s.t. ⃗x ⪯⃗y =⇒h(⃗x) ≤h(⃗y)} .
+
+NB: this does not specify σ, but due to the assumed factoring, σ must be a symmetric continuous
+CDF with full support.
+
+We now show item 2.
+
+As we now restore NC, we now begin with the stronger factored form
+
+H =
+n
+x(1), x(2) 7→σ
+ d
+X
+
+i=1
+hi
+inner(x(i)
+1 ) −hi
+inner(x(i)
+2 )
+  hi
+inner ∈Hi
+o
+.
+
+We then apply the same reasoning as in item 3, now applied to x1, x2 that differ in only dimension
+i, to conclude that the ith model factor obeys
+
+Hi = {h : R →R | x ≤y =⇒h(x) ≤h(y)} .
+
+This concludes the result.
+
+We now show theorem 2.7.
+Theorem 2.7 (Proportionality of Choice). Suppose a probabilistic decision rule over n ≥3 items
+that obeys the choice axiom. Then H(·, ·) admits a σ-transitive factoring with logistic σ.
+
+Proof. Suppose items A, B, and C ∈X. Essentially, we use the telescoping product
+
+P(A best)
+P(C best) = P(A best)
+
+P(B best)
+P(B best)
+P(C best)
+
+Substituting in the proportionality axiom:
+
+1
+σ(σ−1(P(C > B)) + σ−1(P(B > A))) −1 =
+
+1
+P(B > A) −1
+ 
+1
+P(C > A) −1
+
+
+19
+
+Figure 4: An example pairwise comparison presented to participants of Study One of the Kidney
+Allocation dataset.
+
+Rearranging the equation:
+
+σ(σ−1(P(C > B)) + σ−1(P(B > A))) =
+1
+
+1 +
+
+1
+P(B>A) −1
+ 
+1
+P(C>A) −1
+
+
+=
+1
+
+1 + exp ◦ln
+
+1
+P(B>A) −1
+ 
+1
+P(C>A) −1
+
+
+!
+
+ 
+1
+1
+P(C>A) −1
+
+!!
+
+ 
+
+ 
+1
+1
+P(B>A) −1
+
++ ln
+
+= logistic
+
+ln
+
+= logistic (logit (P(B > A)) + logit (P(C > A))) .
+
+We thus conclude that σ is the logistic function.
+
+B
+Empirical Analysis – Other Details
+
+B.1
+Dataset and Preprocessing
+
+Kidney Allocation Real-World Datasets. As mentioned earlier, the real-world dataset we used
+was collected by Boerstler et al. [4] to test moral judgments stability. Across two studies, multiple
+participants were presented with several kidney allocation scenarios across 10 days (60 scenarios
+per day). In Study One, each kidney allocation scenario contained profiles of two kidney patients
+(Patient A and Patient B) described by four features: (a) number of dependents (0, 1, 2), (b) life
+decades gained from kidney transplant (1, 2, 3), (c) number of alcoholic drinks per day (0, 2, 4), and
+(d) number of crimes committed (0, 1, 2). In Study Two, each patient is described by five features:
+(a) number of elderly dependents (0, 1, 2), (b) life years gained from kidney transplant (1, 2, 3), (c)
+years waiting for the transplant (0, 2, 4), (d) weekly work hours post-transplant (0, 1, 2), and (e)
+obesity level (0, 1, 2, 3, 4). Participants were asked to decide who should get the kidney when only
+one was available and both patients were eligible. An example of one such pairwise comparison is
+presented in Figure 4.
+
+Out of the 60 scenarios presented to each participant per day, several scenarios were repeated. This
+includes 6 scenarios that were repeated twice per day across all days to test for response stability
+and 2 scenarios that were used for attention checks. The remaining scenarios were randomly chosen.
+Since the repeated scenarios were non-random, we removed them from the dataset to ensure that the
+underlying data distribution for each participant corresponds to the uniform distribution over the
+input space. Sessions where participants failed attention checks were also removed from the dataset.
+
+After the above steps, we had around 383 average responses from 15 participants in Study One and
+around 330 average responses from 40 participants in Study Two. This dataset is available under the
+CC-BY 4.0 license and is included with the Supplementary for the sake of completeness.
+
+20
+
+Figure 5: Comparison of our model vs baseline linear regression model for the synthetic dataset
+containing responses from five simulated decision-makers.
+
+Synthetic Datasets. The synthetic dataset is constructed by simulating five decision-makers DM1–
+DM5, each using a different set of heuristics. The process for DM1 is described in Section 3. For
+DM2–DM5, the simulated decision processes are noted below. Recall that each decision-maker is
+presented with a pairwise comparison between two kidney patients, A and B, with features xA and
+xB. Each patient is described using the patient’s number of dependents, life years gained from the
+transplant, years waiting for the transplant, and their past number of crimes.
+
+DM2 simulation. For DM2, the decision process for any pairwise comparison between A and B
+can be described as follows: (a) choose the patient with non-zero dependents; (b) if both patients
+have non-zero dependents, then choose the patient with greater value for life years gained; (c) if
+equal, then choose the patient who has been waiting longer for the transplant; (d) if equal, then
+choose randomly. Hence, this decision-maker also uses thresholds on the number of dependents and
+employs other features mainly for tie-breaking.
+
+DM3 simulation. For DM3, the decision process for any pairwise comparison between A and B
+can be described as follows: (a) transform life years gained feature to reflect diminishing returns,
+i.e. zlife gained
+A
+= ⌊log
+
+xlife gained
+A
+
+⌋and zlife gained
+B
+= ⌊log
+
+xlife gained
+B
+
+⌋; (b) assign zlife gained
+A
+points to
+
+patient A and zlife gained
+B
+to patient B; (c) assign xdependents
+A
+points to patient A and xdependents
+B
+points to
+patient B; (d) assign one point each patient who was been waiting for 5 years or more; (e) sum up
+the points for each patient and choose one with greater number of points (ties broken randomly).
+The log-transformation used in this decision-making process captures the diminishing returns prop-
+erty associated with the life years gained feature. Additionally, this process also uses the tallying
+heuristic to essentially count the number of factors favoring each patient.
+
+DM4 simulation. For DM4, the decision process for any pairwise comparison between A and B can
+be described as follows: (a) transform life years gained feature to reflect diminishing returns, i.e.
+zlife gained
+A
+= ⌊log
+
+xlife gained
+A
+
+⌋and zlife gained
+B
+= ⌊log
+
+xlife gained
+B
+
+⌋; (b) choose patient with greater
+
+zlife gained
+·
+value; (c) if equal, then choose the patient with more dependents; (d) if equal, then choose
+the patient who has been waiting longer for the transplant; (e) if equal, then choose randomly. This
+decision-maker also uses log-transformation for life years gained and other features for tie-breaking.
+
+DM5 simulation. For DM5, the decision process for any pairwise comparison between A and B
+can be described as follows: (a) count how many features favor each patient and choose the patient
+favored by more features; (b) if equal, choose randomly. This decision-maker simply uses the
+tallying heuristic, choosing the option favored by more factors.
+
+B.2
+Implementation Details
+
+For each decision-maker (real or simulated), we use a random 70-30 train-test split and report the
+summary statistics of predictive accuracy over test partitions across 20 repetitions.
+
+21
+
+Figure 6: Comparison of our model vs baseline linear regression model for participants in Study
+One of the Kidney Allocation dataset.
+
+Figure 7: Comparison of our model vs baseline linear regression model for participants in Study
+Two of the Kidney Allocation dataset.
+
+Our learning framework. For our framework, we learn editing functions hi,·
+inner for feature i that are
+designed to assign a score∈R to each value of feature i. As noted earlier, all h·,·
+inner are constrained to
+be monotonic. Context ω is limited to one feature for the real-world dataset. The specific context is
+chosen using cross-validation. 20% of the training data is held out to use for validation purposes and
+the conditional two-stage model is learned for each setting of ω = {i} for all i ∈[d]. The context
+ω = {i⋆} for which we achieve the smallest predictive error over the validation set is chosen as the
+final context for the corresponding participant. Context ω is kept empty for the synthetic dataset. For
+the dominance testing function houter(·), we implement the simple tallying heuristic (i.e., the outputs
+from each feature-level editing function h·,·
+inner are simply averaged). The final binary prediction is
+basically whether the houter(·) is greater than 0 or not (with positive value favoring the patient on the
+left and negative value favoring the one on the right).
+
+The two-stage model is trained by minimizing the chosen loss function (cross-entropy or hinge) with
+regularization and constraints. The regularization term quantifies the difference between editing
+functions learned for different values of the context variable ω. We use this regularizer to ensure
+that editing functions for any feature i corresponding to different context values are not too far from
+
+Our two-stage model
+LogisticClf
+ElasticNet
+DecisionTreeClassifier
+RandomForestClassifier
+MLPClassifier
+kNN
+
+Study One
+
+Study Two
+
+Simulated DM
+
+0.8
+
+0.9
+
+0.9
+
+Predictive Accuracy
+
+Predictive Accuracy
+
+Predictive Accuracy
+
+0.8
+
+0.7
+
+0.8
+
+0.7
+
+0.7
+
+0.6
+
+0.6
+
+0.6
+
+0.5
+
+0.5
+
+20
+40
+60
+80
+100
+Training Dataset Size
+
+20
+40
+60
+80
+100
+Training Dataset Size
+
+20
+40
+60
+80
+100
+Training Dataset Size
+
+Figure 8: Comparison of our model vs baselines across increasing training size.
+
+22
+
+each other. As we noted earlier, ω is set to contain only one feature in our experiments on real-world
+datasets. For any two feature values xω = a and xω = b, and for any other feature i /∈ω, the
+regularization term measures ||hi,a
+inner −hi,b
+inner||, for all a, b. The difference between the two editing
+functions is calculated by taking the squared norm of the difference between the outputs of these
+functions over all values in Xi. Hence, the overall regularization term we use is
+
+a,b
+||hi,a
+inner −hi,b
+inner||.
+
+λ ·
+X
+
+X
+
+i/∈ω
+
+Here λ is the regularization parameter and is set to be 1e-3 in our experiments. Additionally, we
+impose monotonicity constraints on each of hinner functions while optimizing the above loss; i.e.,
+for all features i, hi
+inner(a) ≥hi
+inner(b), ∀a > b ∈Xi OR hi
+inner(a) ≤hi
+inner(b), ∀a > b ∈Xi
+(same constraints for context-based inner functions as well). We solve this constrained optimization
+problem using the Python SLSQP library (options ’ftol’ and ’maxiter’ are set to 1e-7 and 300,
+respectively).
+
+Baseline details. The drift diffusion model was implemented using the Python PyDDM library
+with linear drift functions. The Bradley-Terry framework was implemented using the Python choix
+library, with a two-layer neural network scoring function.
+
+We also implemented the following supervised modeling strategies to compare our method against.
+(a) Logistic Classifier – we implement the standard logistic classification approach, but impose
+a symmetry constraint by regressing over feature differences across the pairwise comparison; (b)
+Elastic-net Classifier – using the standard logistic classification approach over all given features
+with L1 and L2 regularization, with L1 ratio (scaling between L1 and L2 penalties) set to be 0.5. (c)
+Decision Tree Classifier – over all features with Gini splitting criterion; (d) Linear SVM – over all
+features with L2 penalty and squared hinge loss; (e) kNN – over all features with n = 5 neighbors;
+(f) Random Forest Classifier – over all features with 100 estimators; (g) MLP Classifier – over all
+features with two hidden layers of 10 nodes each.
+
+Computing resources used. All experiments were run on a MacBook M2 system with a 16GB
+memory.
+
+B.3
+Additional Empirical Results
+
+Performances and models for simulated decision-makers DM2–DM5. As mentioned earlier,
+we also created a synthetic dataset containing responses from five simulated decision-makers. The
+descriptions of the simulated DMs are provided above. In this section, we report additional results
+for these simulations.
+
+First, the performance of our model, Logistic Classifier, and MLP Classifier are presented in Fig-
+ure 5. Note for all but DM5, our model has better predictive accuracy than baselines.
+
+Individual participant-level performances. Across all participants, the performance of our two-
+stage model, Logistic Classifier, and MLP Classifier are reported in Figure 6 for Study One and
+in Figure 7 for Study Two (other baselines excluded here for presentation clarity). The plots show
+that our model has comparable accuracy to the Logistic Classifier for all participants across the
+real-world study datasets.
+
+Performance variation across training data sizes. We also assess the performance of each model
+across variations of training size from 10 to 100. The results are reported in Figure 8. Our model
+reaches high accuracy levels faster than other models, with significant improvement in training per-
+formance compared to baselines for the simulated decision-makers.
+
+23
+
+Figure 9: Editing rules learned by our approach for all simulated decision-makers DM1–DM5.
+
+24
+
