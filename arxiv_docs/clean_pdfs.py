@@ -71,3 +71,6 @@ def save_chunks_todb():
         all_chunks.extend(file_chunks)
         
     vectore_store.add_documents(all_chunks)
+
+
+
