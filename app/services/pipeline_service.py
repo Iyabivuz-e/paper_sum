@@ -38,7 +38,7 @@ class PipelineService:
             logger.error("Connection test failed", error=str(e))
             return False
     
-    async def create_job(self, request: PaperProcessRequest) -> PaperProcessResponse:
+    async def create_job(self, request: PaperProcessRequest) -> Dict[str, Any]:
         """Create a new processing job"""
         try:
             # Create initial state
@@ -51,15 +51,19 @@ class PipelineService:
             # Store job
             self.jobs[initial_state["job_id"]] = initial_state
             
-            # Create response
-            response = PaperProcessResponse(
-                job_id=initial_state["job_id"],
-                status=ProcessingStatus.QUEUED,
-                created_at=initial_state["created_at"],
-                updated_at=initial_state["updated_at"]
-            )
+            # Create response as dict with serialized datetimes
+            response_dict = {
+                "job_id": initial_state["job_id"],
+                "status": initial_state["status"],
+                "created_at": initial_state["created_at"].isoformat(),
+                "updated_at": initial_state["updated_at"].isoformat(),
+                "paper_metadata": None,
+                "processing_steps": [],
+                "current_step": None,
+                "error_message": None
+            }
             
-            return response
+            return response_dict
             
         except Exception as e:
             logger.error("Failed to create job", error=str(e))
@@ -81,9 +85,6 @@ class PipelineService:
             
             # Update stored state
             self.jobs[job_id] = result_state
-            
-            # Save results to file
-            await self._save_job_results(job_id, result_state)
             
             logger.info(
                 "Paper processing completed",
@@ -122,46 +123,59 @@ class PipelineService:
             logger.error("Failed to create batch job", error=str(e))
             raise
     
-    async def get_job_status(self, job_id: str) -> Optional[PaperProcessResponse]:
+    async def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job status and results"""
         try:
             if job_id not in self.jobs:
+                logger.warning(f"Job {job_id} not found in jobs storage")
                 return None
             
             state = self.jobs[job_id]
             
-            # Create response from state
-            response = PaperProcessResponse(
-                job_id=job_id,
-                status=state["status"],
-                created_at=state["created_at"],
-                updated_at=state["updated_at"],
-                processing_steps=state["processing_steps"],
-                current_step=state["current_step"],
-                error_message=state["error_message"]
-            )
+            # Create response dict with serialized datetimes
+            response = {
+                "job_id": job_id,
+                "status": state["status"],
+                "created_at": state["created_at"].isoformat() if state.get("created_at") else None,
+                "updated_at": state["updated_at"].isoformat() if state.get("updated_at") else None,
+                "processing_steps": [
+                    {
+                        "step_name": getattr(step, 'step_name', ''),
+                        "status": getattr(step, 'status', ''),
+                        "started_at": getattr(step, 'started_at', None).isoformat() if getattr(step, 'started_at', None) else None,
+                        "completed_at": getattr(step, 'completed_at', None).isoformat() if getattr(step, 'completed_at', None) else None,
+                        "duration_seconds": getattr(step, 'duration_seconds', None),
+                        "error_message": getattr(step, 'error_message', None),
+                        "metadata": getattr(step, 'metadata', {})
+                    } for step in state.get("processing_steps", [])
+                ],
+                "current_step": state.get("current_step"),
+                "error_message": state.get("error_message")
+            }
             
             # Add paper metadata if available
-            if state["paper_metadata"]:
-                response.paper_metadata = PaperMetadata(
-                    title=state["paper_metadata"].get("title", ""),
-                    authors=state["paper_metadata"].get("authors", []),
-                    abstract=state["paper_metadata"].get("abstract", ""),
-                    arxiv_id=state["paper_metadata"].get("arxiv_id"),
-                    categories=state["paper_metadata"].get("categories", [])
-                )
+            if state.get("paper_metadata"):
+                response["paper_metadata"] = {
+                    "title": state["paper_metadata"].get("title", ""),
+                    "authors": state["paper_metadata"].get("authors", []),
+                    "abstract": state["paper_metadata"].get("abstract", ""),
+                    "arxiv_id": state["paper_metadata"].get("arxiv_id"),
+                    "categories": state["paper_metadata"].get("categories", []),
+                    "published_date": state["paper_metadata"].get("published_date"),
+                    "pdf_url": state["paper_metadata"].get("pdf_url")
+                }
             
             # Add analysis results if completed
-            if state["status"] == ProcessingStatus.COMPLETED:
-                response.analysis_result = PaperAnalysisResult(
-                    serious_summary=state["serious_summary"],
-                    contextual_analysis=state["contextual_analysis"],
-                    novelty_score=state["novelty_score"],
-                    human_fun_summary=state["human_fun_summary"],
-                    final_digest=state["final_digest"],
-                    tweet_thread=state["tweet_thread"],
-                    blog_post=state["blog_post"]
-                )
+            if state.get("status") == ProcessingStatus.COMPLETED:
+                response["analysis_result"] = {
+                    "serious_summary": state.get("serious_summary", ""),
+                    "contextual_analysis": state.get("contextual_analysis", ""),
+                    "novelty_score": state.get("novelty_score", 0.0),
+                    "human_fun_summary": state.get("human_fun_summary", ""),
+                    "final_digest": state.get("final_digest", ""),
+                    "tweet_thread": state.get("tweet_thread", []),
+                    "blog_post": state.get("blog_post", "")
+                }
             
             return response
             
@@ -277,34 +291,3 @@ class PipelineService:
         except Exception as e:
             logger.error("Failed to reset vector database", error=str(e))
             raise
-    
-    async def _save_job_results(self, job_id: str, state: PipelineState):
-        """Save job results to files"""
-        try:
-            output_dir = Path(settings.output_dir)
-            output_dir.mkdir(exist_ok=True)
-            
-            # Save JSON results
-            results = {
-                "job_id": job_id,
-                "status": state["status"],
-                "paper_metadata": state["paper_metadata"],
-                "serious_summary": state["serious_summary"],
-                "contextual_analysis": state["contextual_analysis"],
-                "novelty_score": state["novelty_score"],
-                "human_fun_summary": state["human_fun_summary"],
-                "final_digest": state["final_digest"],
-                "tweet_thread": state["tweet_thread"],
-                "blog_post": state["blog_post"],
-                "processing_steps": [step.dict() for step in state["processing_steps"]],
-                "completed_at": datetime.utcnow().isoformat()
-            }
-            
-            json_file = output_dir / f"{job_id}_result.json"
-            with open(json_file, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, default=str)
-            
-            logger.info("Job results saved", job_id=job_id, file=str(json_file))
-            
-        except Exception as e:
-            logger.error("Failed to save job results", job_id=job_id, error=str(e))

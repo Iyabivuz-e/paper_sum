@@ -2,6 +2,7 @@
 FastAPI Application - Production-grade API for LaughGraph
 """
 
+from app.pipeline.state import PipelineState
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -9,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import structlog
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import asyncio
 from datetime import datetime, timedelta
 import redis
@@ -24,6 +25,7 @@ from app.models.schemas import (
 from app.api.dependencies import get_redis_client, rate_limit_check
 from app.services.pipeline_service import PipelineService
 from app.services.monitoring import MetricsCollector
+from app.utils import clean_response_for_json
 
 # Configure structured logging
 structlog.configure(
@@ -33,7 +35,7 @@ structlog.configure(
         structlog.processors.JSONRenderer()
     ],
     wrapper_class=structlog.make_filtering_bound_logger(
-        min_level=getattr(structlog.stdlib, settings.log_level)
+        min_level=20 if settings.log_level == "INFO" else 10  # Simple level mapping
     ),
     logger_factory=structlog.PrintLoggerFactory(),
     cache_logger_on_first_use=True,
@@ -108,11 +110,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with structured responses"""
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(
-            error=f"HTTP_{exc.status_code}",
-            message=exc.detail,
-            timestamp=datetime.utcnow()
-        ).dict()
+        content={
+            "error": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
+            "timestamp": datetime.utcnow().isoformat()
+        }
     )
 
 
@@ -123,11 +125,11 @@ async def general_exception_handler(request: Request, exc: Exception):
     
     return JSONResponse(
         status_code=500,
-        content=ErrorResponse(
-            error="INTERNAL_SERVER_ERROR",
-            message="An unexpected error occurred. Please try again later.",
-            timestamp=datetime.utcnow()
-        ).dict()
+        content={
+            "error": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred. Please try again later.",
+            "timestamp": datetime.utcnow().isoformat()
+        }
     )
 
 
@@ -161,6 +163,77 @@ async def get_metrics():
 
 
 # Main API Endpoints
+
+# Simple test endpoint to verify datetime serialization
+@app.post("/test-simple")
+async def test_simple():
+    """Simple test endpoint"""
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.post("/process-paper")
+async def process_paper_simple(
+    request: PaperProcessRequest,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    redis_client = Depends(get_redis_client),
+    _rate_limit = Depends(rate_limit_check)
+):
+    """
+    🚀 **SUPER SIMPLE**: Process a paper with minimal input!
+    
+    **Just provide ONE of these**:
+    - **arxiv_id**: ArXiv paper ID (e.g., "2310.06825")  
+    - **pdf_url**: Direct URL to PDF file
+    
+    **Optional**:
+    - **user_query**: What you want to know about the paper
+    
+    **Example usage**:
+    ```
+    POST /process-paper
+    {
+        "arxiv_id": "2310.06825"
+    }
+    ```
+    
+    That's it! Everything else uses smart defaults.
+    """
+    try:
+        # Validate input
+        if not request.arxiv_id and not request.pdf_url:
+            raise HTTPException(
+                status_code=400, 
+                detail="Please provide either 'arxiv_id' or 'pdf_url'"
+            )
+        
+        # Create job
+        job_response = await pipeline_service.create_job(request)
+        
+        # Store job for tracking (use the job_id from the dict)
+        active_jobs[job_response["job_id"]] = job_response
+        
+        # Start background processing
+        background_tasks.add_task(
+            pipeline_service.process_paper_async,
+            job_response["job_id"],
+            request
+        )
+        
+        logger.info(
+            "Simple paper processing job created",
+            job_id=job_response["job_id"],
+            arxiv_id=request.arxiv_id,
+            pdf_url=request.pdf_url
+        )
+        
+        # Return the dict directly (already JSON serializable)
+        return job_response
+        
+    except Exception as e:
+        logger.error("Failed to create simple processing job", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to create processing job")
+
+
 @app.post("/papers/process", response_model=PaperProcessResponse)
 async def process_paper(
     request: PaperProcessRequest,
@@ -169,13 +242,23 @@ async def process_paper(
     _rate_limit = Depends(rate_limit_check)
 ):
     """
-    Process a single research paper
+    Process a single research paper - Simple and user-friendly!
     
-    - **arxiv_id**: ArXiv paper ID (e.g., "2310.06825")
+    **Required** (provide ONE of these):
+    - **arxiv_id**: ArXiv paper ID (e.g., "2310.06825") 
     - **pdf_url**: Direct URL to PDF file
-    - **user_query**: Specific question or focus area
-    - **output_formats**: Desired output formats
-    - **priority**: Processing priority (1=highest, 10=lowest)
+    
+    **Optional**:
+    - **user_query**: Specific question or focus area (defaults to comprehensive analysis)
+    - **output_formats**: Desired output formats (defaults to JSON)
+    - **priority**: Processing priority 1-10 (defaults to 5)
+    
+    **Examples**:
+    ```json
+    {"arxiv_id": "2310.06825"}
+    {"pdf_url": "https://arxiv.org/pdf/2310.06825.pdf"}
+    {"arxiv_id": "2310.06825", "user_query": "What are the main contributions?"}
+    ```
     """
     try:
         # Validate input
@@ -254,7 +337,7 @@ async def process_batch(
         raise HTTPException(status_code=500, detail="Failed to create batch job")
 
 
-@app.get("/jobs/{job_id}", response_model=PaperProcessResponse)
+@app.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
     """
     Get the status and results of a processing job
@@ -266,6 +349,7 @@ async def get_job_status(job_id: str):
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         
+        # Return the job directly (already serialized)
         return job
         
     except HTTPException:

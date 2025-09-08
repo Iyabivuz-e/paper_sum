@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     max_results_per_search: int = 10
     
     # File Storage
-    output_dir: str = "./outputs"
     research_papers_dir: str = "./research_papers"
     max_file_size: int = 100 * 1024 * 1024  # 100MB
     
@@ -60,6 +59,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
 
 
 # Global settings instance

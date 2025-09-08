@@ -29,19 +29,21 @@ class ProductionPipelineNodes:
     """Production-grade pipeline nodes with proper error handling and monitoring"""
     
     def __init__(self):
-        # Initialize LLM based on configuration
-        if settings.groq_api_key:
+        # Initialize LLM with the specific Groq model requested by user
+        if not settings.groq_api_key:
+            raise ValueError("Groq API key is required for the requested model")
+        
+        try:
+            # Use only the specific Groq model: openai/gpt-oss-20b
             self.llm = ChatGroq(
-                model="llama-3.1-70b-versatile",
+                model="openai/gpt-oss-20b",
                 api_key=settings.groq_api_key,
                 temperature=0.7
             )
-        else:
-            self.llm = ChatOpenAI(
-                model="gpt-3.5-turbo",
-                api_key=settings.openai_api_key,
-                temperature=0.7
-            )
+            logger.info("Using Groq LLM: openai/gpt-oss-20b")
+        except Exception as e:
+            logger.error(f"Failed to initialize Groq model openai/gpt-oss-20b: {e}")
+            raise e
         
         self.embeddings = HuggingFaceEmbeddings(
             model_name=settings.embedding_model
@@ -60,23 +62,23 @@ class ProductionPipelineNodes:
 
     async def _log_step_start(self, state: PipelineState, step_name: str) -> None:
         """Log step start and update state"""
-        logger.info(f"Starting step: {step_name}", job_id=state.job_id)
+        logger.info(f"Starting step: {step_name}", job_id=state["job_id"])
         
         step = ProcessingStep(
             step_name=step_name,
             status=ProcessingStatus.INGESTING,
             started_at=datetime.utcnow()
         )
-        state.processing_steps.append(step)
-        state.current_step = step_name
+        state["processing_steps"].append(step)
+        state["current_step"] = step_name
 
     async def _log_step_complete(self, state: PipelineState, step_name: str) -> None:
         """Log step completion and update state"""
-        logger.info(f"Completed step: {step_name}", job_id=state.job_id)
+        logger.info(f"Completed step: {step_name}", job_id=state["job_id"])
         
         # Update the last step
-        if state.processing_steps:
-            last_step = state.processing_steps[-1]
+        if state["processing_steps"]:
+            last_step = state["processing_steps"][-1]
             if last_step.step_name == step_name:
                 last_step.completed_at = datetime.utcnow()
                 last_step.status = ProcessingStatus.COMPLETED
@@ -86,10 +88,10 @@ class ProductionPipelineNodes:
 
     async def _log_step_error(self, state: PipelineState, step_name: str, error: str) -> None:
         """Log step error and update state"""
-        logger.error(f"Error in step: {step_name}", error=error, job_id=state.job_id)
+        logger.error(f"Error in step: {step_name}", error=error, job_id=state["job_id"])
         
-        if state.processing_steps:
-            last_step = state.processing_steps[-1]
+        if state["processing_steps"]:
+            last_step = state["processing_steps"][-1]
             if last_step.step_name == step_name:
                 last_step.status = ProcessingStatus.FAILED
                 last_step.error_message = error
@@ -101,14 +103,14 @@ class ProductionPipelineNodes:
         await self._log_step_start(state, step_name)
         
         try:
-            if state.arxiv_id:
+            if state["arxiv_id"]:
                 # Fetch from arXiv
                 client = arxiv.Client()
-                search = arxiv.Search(id_list=[state.arxiv_id])
+                search = arxiv.Search(id_list=[state["arxiv_id"]])
                 paper = next(client.results(search))
                 
                 # Extract metadata
-                state.paper_metadata = {
+                state["paper_metadata"] = {
                     "title": paper.title,
                     "authors": [author.name for author in paper.authors],
                     "abstract": paper.summary,
@@ -118,23 +120,23 @@ class ProductionPipelineNodes:
                 }
                 
                 # Download PDF
-                pdf_path = Path(settings.research_papers_dir) / f"{state.job_id}.pdf"
+                pdf_path = Path(settings.research_papers_dir) / f"{state['job_id']}.pdf"
                 pdf_path.parent.mkdir(exist_ok=True)
                 paper.download_pdf(filename=str(pdf_path))
-                state.pdf_path = str(pdf_path)
+                state["pdf_path"] = str(pdf_path)
                 
-            elif state.pdf_url:
+            elif state["pdf_url"]:
                 # Handle direct PDF URL (implement download logic)
                 # This would involve downloading from the URL
                 pass
                 
-            state.status = ProcessingStatus.PARSING
+            state["status"] = ProcessingStatus.PARSING
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Ingestion failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -145,11 +147,11 @@ class ProductionPipelineNodes:
         await self._log_step_start(state, step_name)
         
         try:
-            if not state.pdf_path:
+            if not state["pdf_path"]:
                 raise ValueError("No PDF path available for parsing")
                 
             # Extract text from PDF
-            doc = fitz.open(state.pdf_path)
+            doc = fitz.open(state["pdf_path"])
             content = ""
             
             for page_num, page in enumerate(doc):
@@ -162,14 +164,14 @@ class ProductionPipelineNodes:
             doc.close()
             
             # Clean and store content
-            state.paper_content = content.strip()
-            state.status = ProcessingStatus.RAG_PROCESSING
+            state["paper_content"] = content.strip()
+            state["status"] = ProcessingStatus.RAG_PROCESSING
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Parsing failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -180,13 +182,26 @@ class ProductionPipelineNodes:
         await self._log_step_start(state, step_name)
         
         try:
-            if not state.paper_content:
+            if not state["paper_content"]:
                 raise ValueError("No paper content available for RAG processing")
+                
+            # Filter complex metadata for ChromaDB (lists, dicts not allowed)
+            simple_metadata = {}
+            if state["paper_metadata"]:
+                for key, value in state["paper_metadata"].items():
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        simple_metadata[key] = value
+                    elif isinstance(value, list):
+                        # Convert lists to comma-separated strings
+                        simple_metadata[key] = ", ".join(str(item) for item in value)
+                    else:
+                        # Convert other types to string
+                        simple_metadata[key] = str(value)
                 
             # Create document
             document = Document(
-                page_content=state.paper_content,
-                metadata=state.paper_metadata or {}
+                page_content=state["paper_content"],
+                metadata=simple_metadata
             )
             
             # Split into chunks
@@ -196,21 +211,21 @@ class ProductionPipelineNodes:
             chunk_ids = self.vector_store.add_documents(chunks)
             
             # Store chunk information
-            state.text_chunks = [chunk.page_content for chunk in chunks]
-            state.chunk_ids = chunk_ids
+            state["text_chunks"] = [chunk.page_content for chunk in chunks]
+            state["chunk_ids"] = chunk_ids
             
             # Retrieve relevant context for processing
-            query = f"{state.paper_metadata.get('title', '')} {state.paper_metadata.get('abstract', '')}"
+            query = f"{state["paper_metadata"].get('title', '')} {state["paper_metadata"].get('abstract', '')}"
             retrieved_docs = self.vector_store.similarity_search(query, k=5)
-            state.retrieved_context = [doc.page_content for doc in retrieved_docs]
+            state["retrieved_context"] = [doc.page_content for doc in retrieved_docs]
             
-            state.status = ProcessingStatus.SUMMARIZING
+            state["status"] = ProcessingStatus.SUMMARIZING
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"RAG processing failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -221,9 +236,9 @@ class ProductionPipelineNodes:
         await self._log_step_start(state, step_name)
         
         try:
-            title = state.paper_metadata.get("title", "")
-            abstract = state.paper_metadata.get("abstract", "")
-            context = "\n".join(state.retrieved_context[:3])  # Use top 3 chunks
+            title = state["paper_metadata"].get("title", "")
+            abstract = state["paper_metadata"].get("abstract", "")
+            context = "\n".join(state["retrieved_context"][:3])  # Use top 3 chunks
             
             # Serious summarizer prompt
             serious_prompt = ChatPromptTemplate.from_template("""
@@ -272,7 +287,7 @@ class ProductionPipelineNodes:
                 "context": context
             })
             
-            state.serious_summary = serious_response.content
+            state["serious_summary"] = serious_response.content
             
             # Generate contextual analysis
             context_chain = context_prompt | self.llm
@@ -281,14 +296,14 @@ class ProductionPipelineNodes:
                 "summary": serious_response.content
             })
             
-            state.contextual_analysis = context_response.content
-            state.status = ProcessingStatus.NOVELTY_ANALYSIS
+            state["contextual_analysis"] = context_response.content
+            state["status"] = ProcessingStatus.NOVELTY_ANALYSIS
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Summarization failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -334,9 +349,9 @@ class ProductionPipelineNodes:
             
             novelty_chain = novelty_prompt | self.llm
             novelty_response = await novelty_chain.ainvoke({
-                "title": state.paper_metadata.get("title", ""),
-                "summary": state.serious_summary,
-                "context": state.contextual_analysis
+                "title": state["paper_metadata"].get("title", ""),
+                "summary": state["serious_summary"],
+                "context": state["contextual_analysis"]
             })
             
             # Extract novelty score (simple parsing - could be more sophisticated)
@@ -346,24 +361,24 @@ class ProductionPipelineNodes:
                 import re
                 match = re.search(r"Overall Novelty Score:\s*(\d+\.?\d*)", novelty_text)
                 if match:
-                    state.novelty_score = float(match.group(1))
+                    state["novelty_score"] = float(match.group(1))
                 else:
                     # Fallback: count novelty keywords
                     novelty_keywords = ["novel", "new", "first", "breakthrough", "unprecedented", "innovative"]
                     score = sum(1 for word in novelty_keywords 
-                              if word.lower() in state.serious_summary.lower()) / 10.0
-                    state.novelty_score = min(score, 1.0)
+                              if word.lower() in state["serious_summary"].lower()) / 10.0
+                    state["novelty_score"] = min(score, 1.0)
             except:
-                state.novelty_score = 0.5  # Default if parsing fails
+                state["novelty_score"] = 0.5  # Default if parsing fails
             
-            state.novelty_analysis = novelty_text
-            state.status = ProcessingStatus.HUMANIZING
+            state["novelty_analysis"] = novelty_text
+            state["status"] = ProcessingStatus.HUMANIZING
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Novelty analysis failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -424,20 +439,20 @@ class ProductionPipelineNodes:
             
             fun_chain = fun_prompt | self.llm
             fun_response = await fun_chain.ainvoke({
-                "title": state.paper_metadata.get("title", ""),
-                "serious_summary": state.serious_summary,
-                "novelty_score": state.novelty_score,
-                "user_query": state.user_query or "general explanation"
+                "title": state["paper_metadata"].get("title", ""),
+                "serious_summary": state["serious_summary"],
+                "novelty_score": state["novelty_score"],
+                "user_query": state["user_query"] or "general explanation"
             })
             
-            state.human_fun_summary = fun_response.content
-            state.status = ProcessingStatus.SYNTHESIZING
+            state["human_fun_summary"] = fun_response.content
+            state["status"] = ProcessingStatus.SYNTHESIZING
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Fun translation failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state
@@ -494,11 +509,11 @@ class ProductionPipelineNodes:
             
             synthesis_chain = synthesis_prompt | self.llm
             synthesis_response = await synthesis_chain.ainvoke({
-                "title": state.paper_metadata.get("title", ""),
-                "serious_summary": state.serious_summary,
-                "contextual_analysis": state.contextual_analysis,
-                "novelty_analysis": state.novelty_analysis,
-                "human_fun_summary": state.human_fun_summary
+                "title": state["paper_metadata"].get("title", ""),
+                "serious_summary": state["serious_summary"],
+                "contextual_analysis": state["contextual_analysis"],
+                "novelty_analysis": state["novelty_analysis"],
+                "human_fun_summary": state["human_fun_summary"]
             })
             
             content = synthesis_response.content
@@ -508,7 +523,7 @@ class ProductionPipelineNodes:
             sections = content.split('\n\n')
             
             # Extract unified digest (first major section)
-            state.final_digest = content
+            state["final_digest"] = content
             
             # Extract tweet thread (look for numbered tweets)
             tweets = []
@@ -516,22 +531,22 @@ class ProductionPipelineNodes:
             for line in lines:
                 if line.strip() and any(line.strip().startswith(f'{i}/') for i in range(1, 10)):
                     tweets.append(line.strip())
-            state.tweet_thread = tweets
+            state["tweet_thread"] = tweets
             
             # Extract blog post (everything after "BLOG POST STRUCTURE")
             if "BLOG POST STRUCTURE" in content:
                 blog_start = content.find("BLOG POST STRUCTURE")
-                state.blog_post = content[blog_start:].replace("BLOG POST STRUCTURE:", "").strip()
+                state["blog_post"] = content[blog_start:].replace("BLOG POST STRUCTURE:", "").strip()
             else:
-                state.blog_post = content
+                state["blog_post"] = content
             
-            state.status = ProcessingStatus.COMPLETED
+            state["status"] = ProcessingStatus.COMPLETED
             await self._log_step_complete(state, step_name)
             
         except Exception as e:
             error_msg = f"Output generation failed: {str(e)}"
-            state.error_message = error_msg
-            state.status = ProcessingStatus.FAILED
+            state["error_message"] = error_msg
+            state["status"] = ProcessingStatus.FAILED
             await self._log_step_error(state, step_name, error_msg)
             
         return state

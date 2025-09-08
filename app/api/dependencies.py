@@ -17,16 +17,17 @@ logger = structlog.get_logger()
 redis_client: Optional[redis.Redis] = None
 
 def get_redis_client() -> Optional[redis.Redis]:
-    """Get Redis client for caching and rate limiting"""
+    """Get Redis client for caching and rate limiting (optional)"""
     global redis_client
     
-    if not redis_client and settings.redis_url:
+    if not redis_client:
         try:
             redis_client = redis.from_url(settings.redis_url)
             redis_client.ping()  # Test connection
+            logger.info("Redis connection established")
         except Exception as e:
             logger.warning("Redis connection failed", error=str(e))
-            redis_client = None
+            return None  # Return None instead of failing
     
     return redis_client
 
