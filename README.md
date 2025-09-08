@@ -1,6 +1,11 @@
 # LaughGraph: Serious + Human-Fun AI Research Digest
 
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Python](https://img.shields.io/badge/python## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.9+
+- OpenAI API key
+- uv (recommended) or pipblue.svg)
 ![LangGraph](https://img.shields.io/badge/LangGraph-powered-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -34,31 +39,50 @@ A **LangGraph-powered assistant** that produces two synchronized perspectives fo
 - **Feedback loops**: Fun side can ask serious side for clarity
 - **Workflow orchestration**: Complex multi-step processing with decision points
 
-## 🧩 Workflow Nodes
+## 🧩 MVP Pipeline Architecture
+
+Your **5-Node LangGraph Pipeline**:
 
 ```mermaid
 graph TD
-    A[Ingestion] --> B[Summarizer]
-    B --> C[Contextualizer]
-    B --> D[Novelty Analyzer]
-    C --> E[Human-Fun Node]
-    D --> E
-    E --> F[Synthesis]
-    F --> G[Output]
+    A[User Query + arXiv ID] --> B[Node 1: Get Paper from arXiv]
+    B --> C[Node 2: Chunk & Embed to Vector DB]
+    C --> D[Node 3: Serious Summary + Context]
+    D --> E[Node 4: Human-Fun Translation]
+    E --> F[Node 5: Synthesis & Output]
+    F --> G[Multi-Format Results]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#e0f2f1
 ```
 
-### Node Details:
+### Pipeline Flow:
 
-1. **Ingestion** → Fetch & parse papers (arXiv, PDFs)
-2. **Summarizer** → Generate plain-language + technical summaries
-3. **Contextualizer** → Explain how the paper fits in the field
-4. **Novelty Analyzer** → Rate how new the idea actually is
-5. **Human-Fun Node** → Add friendly humor:
-   - "Impressive engineering!" 🔧
-   - Light jokes about computational effort (e.g., "GPUs working overtime")
-   - Analogies (e.g., "bigger pizza 🍕 = better model")
-6. **Synthesis** → Merge serious + fun into one cohesive digest
-7. **Output** → Generate blog posts, markdown, tweet threads, or meme-ready captions
+1. **📥 Input**: User provides arXiv ID or PDF URL
+2. **🔍 Node 1**: Download & parse paper from arXiv → extract text
+3. **🧩 Node 2**: Split into chunks → embed → store in Chroma vector DB
+4. **🎯 Node 3**: RAG retrieval → serious summary + contextual analysis
+5. **😄 Node 4**: Transform serious content → add humor, analogies, emojis
+6. **🔗 Node 5**: Merge perspectives → generate digest, tweets, blog format
+
+### State Management:
+
+```python
+PaperState = {
+    "arxiv_id": "2310.06825",
+    "paper_title": "...",
+    "serious_summary": "...",
+    "human_fun_summary": "...", 
+    "final_digest": "...",
+    "tweet_thread": [...],
+    "blog_post": "..."
+}
+```
 
 ## 🌟 Key Features
 
@@ -78,10 +102,11 @@ Other tools either:
 
 > Think of it as a study guide that explains papers clearly while also making you smile! 😄
 
-## 🛠️ Installation
+## � Quick Start
 
 ### Prerequisites
 - Python 3.8+
+- OpenAI API key
 - uv (recommended) or pip
 
 ### Setup
@@ -94,21 +119,43 @@ cd laughgraph
 # Install dependencies with uv
 uv sync
 
-# Or with pip
-pip install -r requirements.txt
-
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your API keys (OpenAI, ArXiv, etc.)
+# Edit .env with your OpenAI API key
 ```
 
-### Environment Variables
+### Run Your First Paper
 
 ```bash
-OPENAI_API_KEY=your_openai_key
-ARXIV_API_BASE=http://export.arxiv.org/api/query
-CHROMA_PERSIST_DIR=./db/chroma_store
+# Interactive mode
+python main.py
+
+# Or directly in Python
+from main import run_single_paper_pipeline
+run_single_paper_pipeline("2310.06825")  # Any arXiv ID
 ```
+
+### Expected Output
+
+```
+📄 PAPER TITLE: Your Paper Title Here
+
+🎯 SERIOUS SUMMARY: 
+Technical analysis with methodology, results, and significance...
+
+😄 FUN SUMMARY:
+Imagine if your AI model went to the gym and came back with bigger muscles! 💪
+This paper basically teaches machines to lift heavier intellectual weights...
+
+🔗 FINAL DIGEST:
+A conversation between a professor and a friend about exciting research...
+
+🐦 TWITTER THREAD:
+1/ 🧵 New AI paper just dropped and it's actually pretty cool!
+2/ The main idea: instead of training bigger models, make them smarter...
+```
+
+See **[QUICKSTART.md](QUICKSTART.md)** for detailed setup instructions.
 
 ## 🚀 Quick Start
 
