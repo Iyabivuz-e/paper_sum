@@ -45,8 +45,13 @@ db_service = DatabaseService()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database connection on startup"""
-    await db_service.connect()
+    """Initialize database connection on startup - non-blocking"""
+    try:
+        await db_service.connect()
+        print("✅ Database connected successfully")
+    except Exception as e:
+        print(f"⚠️ Database connection failed: {e}")
+        print("🚀 Server will continue without database - some features may be limited")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -191,6 +196,21 @@ async def get_job_status(job_id: str):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.get("/")
+async def root():
+    """Root endpoint to verify server is running"""
+    return {
+        "message": "AI Paper Summarizer API is running!", 
+        "status": "online",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "summarize": "/api/summarize",
+            "status": "/api/status/{job_id}"
+        }
+    }
 
 
 @app.post("/analytics/track")
