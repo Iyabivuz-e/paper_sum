@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import { Send, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "../lib/utils"
 
 interface InputFormProps {
   onSubmit: (data: { arxivId?: string; pdfUrl?: string; pdfFile?: File }) => void
