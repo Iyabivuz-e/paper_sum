@@ -187,7 +187,7 @@ export default function Home() {
         });
       } else {
         // Handle ArXiv ID or PDF URL
-        submitResponse = await fetch(`${backendUrl}/api/summarize-json`, {
+        submitResponse = await fetch(`${backendUrl}/api/summarize`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -5,11 +5,12 @@ Simplified API for Frontend Integration
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 
 # Import our existing pipeline service
 from app.services.pipeline_service import PipelineService
+from app.services.database_service import DatabaseService
 from app.models.schemas import PaperProcessRequest
 
 app = FastAPI(title="AI Paper Explainer API", version="1.0.0")
@@ -23,8 +24,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize pipeline service
+# Initialize services
 pipeline_service = PipelineService()
+db_service = DatabaseService()
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database connection on startup"""
+    await db_service.connect()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close database connection on shutdown"""
+    await db_service.disconnect()
 
 # Request/response models
 class SummarizeRequest(BaseModel):
@@ -51,9 +63,9 @@ async def summarize_paper(
         # Create job
         job_response = await pipeline_service.create_job(paper_request)
         
-        # Start background processing
+        # Start background processing and analytics tracking
         background_tasks.add_task(
-            pipeline_service.process_paper_async,
+            process_paper_with_analytics,
             job_response["job_id"],
             paper_request
         )
@@ -64,7 +76,83 @@ async def summarize_paper(
         )
         
     except Exception as e:
+        # Track failed request
+        background_tasks.add_task(
+            track_analytics_async,
+            None,
+            request.arxiv_id,
+            None,
+            None,
+            None,
+            "failed",
+            str(e)
+        )
         raise HTTPException(status_code=500, detail=f"Failed to start processing: {str(e)}")
+
+
+async def process_paper_with_analytics(job_id: str, paper_request: PaperProcessRequest):
+    """Process paper and track analytics"""
+    start_time = datetime.now()
+    
+    try:
+        # Process the paper
+        await pipeline_service.process_paper_async(job_id, paper_request)
+        
+        # Get job results for analytics
+        job_data = await pipeline_service.get_job_status(job_id)
+        
+        # Calculate processing time
+        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        # Track successful analytics
+        await track_analytics_async(
+            job_data.get('result', {}).get('title'),
+            paper_request.arxiv_id,
+            processing_time,
+            job_data.get('result', {}).get('tokens_used'),
+            job_data.get('result', {}).get('novelty_score'),
+            "completed",
+            None
+        )
+        
+    except Exception as e:
+        # Calculate processing time even for failures
+        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        # Track failed analytics
+        await track_analytics_async(
+            None,
+            paper_request.arxiv_id,
+            processing_time,
+            None,
+            None,
+            "failed",
+            str(e)
+        )
+
+
+async def track_analytics_async(
+    paper_title: Optional[str],
+    arxiv_id: Optional[str],
+    processing_time_ms: Optional[int],
+    tokens_used: Optional[int],
+    novelty_score: Optional[float],
+    status: str,
+    error_message: Optional[str]
+):
+    """Track analytics asynchronously"""
+    try:
+        await db_service.log_paper_analytics(
+            paper_title=paper_title,
+            arxiv_id=arxiv_id,
+            processing_time_ms=processing_time_ms,
+            tokens_used=tokens_used,
+            novelty_score=novelty_score,
+            status=status,
+            error_message=error_message
+        )
+    except Exception as e:
+        print(f"Failed to track analytics: {e}")  # Log but don't fail the main process
 
 
 @app.get("/api/jobs/{job_id}")
@@ -88,6 +176,51 @@ async def get_job_status(job_id: str):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.post("/analytics/track")
+async def track_analytics(data: Dict[str, Any]):
+    """Accept analytics data to prevent 404 errors"""
+    # Just accept and ignore the data
+    return {"status": "ok"}
+
+
+@app.post("/api/feedback")
+async def submit_feedback(data: Dict[str, Any]):
+    """Accept and store feedback data"""
+    try:
+        await db_service.submit_feedback(
+            rating=data.get('rating', 'positive'),
+            comment=data.get('comment'),
+            paper_title=data.get('paperTitle'),
+            arxiv_id=data.get('arxivId'),
+            session_id=data.get('sessionId'),
+            user_agent=data.get('userAgent'),
+            ip_address=data.get('ipAddress')
+        )
+        return {"status": "ok", "message": "Feedback stored successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store feedback: {str(e)}")
+
+
+@app.get("/api/analytics/feedback")
+async def get_feedback_analytics(days: int = 30):
+    """Get real feedback analytics from database"""
+    try:
+        analytics_data = await db_service.get_feedback_analytics(days_back=days)
+        return analytics_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get feedback analytics: {str(e)}")
+
+
+@app.get("/api/analytics/usage")
+async def get_usage_analytics(days: int = 30):
+    """Get real usage analytics from database"""
+    try:
+        analytics_data = await db_service.get_usage_analytics(days_back=days)
+        return analytics_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get usage analytics: {str(e)}")
 
 
 if __name__ == "__main__":
