@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.models.analytics import AnalyticsEvent, UserSession
+from core.database import get_db
+from models.analytics import AnalyticsEvent, UserSession
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

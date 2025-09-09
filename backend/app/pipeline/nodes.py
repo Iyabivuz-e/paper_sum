@@ -19,9 +19,9 @@ import structlog
 import asyncio
 from datetime import datetime
 
-from app.core.config import settings
-from app.models.schemas import ProcessingStatus, PaperProcessResponse, ProcessingStep
-from app.pipeline.state import PipelineState
+from core.config import settings
+from models.schemas import ProcessingStatus, PaperProcessResponse, ProcessingStep
+from pipeline.state import PipelineState
 
 logger = structlog.get_logger()
 

@@ -5,7 +5,7 @@ Database setup and configuration for SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.core.config import settings
+from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def create_tables():
     """Create all tables in the database"""
     try:
         # Import all models to ensure they're registered
-        from app.models.analytics import AnalyticsEvent, UserSession, DailyStats, PopularContent
+        from models.analytics import AnalyticsEvent, UserSession, DailyStats, PopularContent
         
         # Create all tables
         Base.metadata.create_all(bind=engine)

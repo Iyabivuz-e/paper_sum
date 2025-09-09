@@ -10,14 +10,14 @@ from pathlib import Path
 import structlog
 import time
 
-from app.models.schemas import (
+from models.schemas import (
     PaperProcessRequest, PaperProcessResponse, BatchProcessRequest, 
     BatchProcessResponse, ProcessingStatus, PaperMetadata, PaperAnalysisResult
 )
-from app.pipeline.nodes import create_production_pipeline
-from app.pipeline.state import create_initial_state, PipelineState
-from app.core.config import settings
-from app.services.database_service import db_service
+from pipeline.nodes import create_production_pipeline
+from pipeline.state import create_initial_state, PipelineState
+from core.config import settings
+from services.database_service import db_service
 
 logger = structlog.get_logger()
 

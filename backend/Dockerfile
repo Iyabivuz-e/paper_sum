@@ -25,9 +25,14 @@ RUN uv pip install --system psycopg2-binary==2.9.10
 # Install dependencies (no need for editable install in production)
 RUN uv sync --no-dev --no-editable
 
-# Copy application code with proper structure for imports
+# Copy application code - flatten app directory to avoid double nesting
 COPY main.py start.sh ./
-COPY app ./app
+COPY app/api ./api
+COPY app/core ./core  
+COPY app/models ./models
+COPY app/pipeline ./pipeline
+COPY app/services ./services
+COPY app/__init__.py app/utils.py ./
 COPY prisma ./prisma
 
 # Set Python path so imports work correctly

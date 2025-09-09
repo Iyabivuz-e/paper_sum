@@ -8,10 +8,17 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-# Import our existing pipeline service
-from app.services.pipeline_service import PipelineService
-from app.services.database_service import DatabaseService
-from app.models.schemas import PaperProcessRequest
+# Import our existing pipeline service with fallback for Docker environment
+try:
+    # Try Docker-style imports first (when running from /app)
+    from services.pipeline_service import PipelineService
+    from services.database_service import DatabaseService
+    from models.schemas import PaperProcessRequest
+except ImportError:
+    # Fallback to local development imports
+    from app.services.pipeline_service import PipelineService
+    from app.services.database_service import DatabaseService
+    from app.models.schemas import PaperProcessRequest
 
 app = FastAPI(title="AI Paper Explainer API", version="1.0.0")
 

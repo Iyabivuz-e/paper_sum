@@ -8,7 +8,7 @@ import time
 from typing import Optional
 import structlog
 
-from app.core.config import settings
+from core.config import settings
 
 logger = structlog.get_logger()
 
