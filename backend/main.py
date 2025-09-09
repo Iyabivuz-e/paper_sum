@@ -22,10 +22,18 @@ except ImportError:
 
 app = FastAPI(title="AI Paper Explainer API", version="1.0.0")
 
-# Enable CORS for frontend
+# Enable CORS for frontend (development and production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000", 
+        "http://localhost:3001", 
+        "http://127.0.0.1:3001",
+        "https://paper-sum.vercel.app",  # Production frontend
+        "https://paper-sum-*.vercel.app",  # Vercel preview deployments
+        "https://*.vercel.app"  # Allow all Vercel domains for flexibility
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -232,4 +240,7 @@ async def get_usage_analytics(days: int = 30):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    import os
+    
+    port = int(os.environ.get("PORT", 8001))  
+    uvicorn.run(app, host="0.0.0.0", port=port)

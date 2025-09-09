@@ -180,9 +180,10 @@ cython_debug/
 .jupyter/
 .local/
 
-# Data files
+# Data files (not config files)
 *.csv
-*.json
+data/*.json
+datasets/*.json
 *.jsonl
 *.parquet
 *.feather
