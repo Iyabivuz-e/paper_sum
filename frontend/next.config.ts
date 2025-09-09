@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   eslint: {
@@ -16,14 +15,6 @@ const nextConfig: NextConfig = {
   },
   // Fix workspace root detection
   outputFileTracingRoot: __dirname,
-  // Explicit webpack configuration for path resolution
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': path.resolve(__dirname, 'src'),
-    };
-    return config;
-  },
 };
 
 export default nextConfig;
