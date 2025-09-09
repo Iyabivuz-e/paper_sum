@@ -1,10 +1,10 @@
-# Dockerfile for AI Paper Summarizer Backend Production Deployment
+# Alternative Dockerfile using api.py (if app.main has issues)
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies including PostgreSQL development headers
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -28,9 +28,6 @@ RUN uv sync --no-dev --no-editable
 # Copy application code
 COPY . .
 
-# Set Python path so imports work correctly
-ENV PYTHONPATH=/app
-
 # Generate Prisma client
 RUN uv run prisma generate
 
@@ -44,5 +41,5 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8001}/health || exit 1
 
-# Run the application with dynamic port
-CMD ["sh", "-c", "uv run uvicorn main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+# Run the application using api.py (alternative if app.main has issues)
+CMD ["sh", "-c", "uv run uvicorn api:app --host 0.0.0.0 --port ${PORT:-8001}"]
