@@ -143,7 +143,7 @@ export function formatChatText(text: string): React.ReactNode {
     <div className="space-y-4">
       {turns.map((turn, index) => {
         // Clean up the turn text
-        let turnText = turn.trim();
+        const turnText = turn.trim();
         if (!turnText) return null;
         
         // Detect speaker

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     
     # Database Configuration
+    database_url: str = "sqlite:///./analytics.db"
     chroma_persist_dir: str = "./db/chroma_store"
     collection_name: str = "arxiv_papers"
     

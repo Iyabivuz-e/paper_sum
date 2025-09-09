@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Github, Twitter, Coffee, Heart, Mail, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 
 export function Footer() {
   return (
@@ -26,9 +27,9 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-foreground">Quick Links</h3>
             <div className="space-y-2">
-              <a href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <span>Analyze Papers</span>
-              </a>
+              </Link>
               <a href="/admin" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <span>Analytics Dashboard</span>
               </a>

@@ -125,15 +125,15 @@ export function InputForm({ onSubmit, isLoading }: InputFormProps) {
           </p>
         </div>
 
-        <div className="relative">
+        {/* <div className="relative">
           <div className="flex items-center justify-center">
             <div className="flex-1 border-t border-border"></div>
             <span className="px-3 text-sm text-muted-foreground">or</span>
             <div className="flex-1 border-t border-border"></div>
           </div>
-        </div>
+        </div> */}
 
-        <div
+        {/* <div
           className={cn(
             "relative rounded-lg border-2 border-dashed p-6 text-center transition-colors",
             "border-muted bg-muted/20 cursor-not-allowed opacity-60"
@@ -148,7 +148,7 @@ export function InputForm({ onSubmit, isLoading }: InputFormProps) {
               </p>
             </div>
           </div>
-        </div>
+        </div> */}
       </form>
     </div>
   )

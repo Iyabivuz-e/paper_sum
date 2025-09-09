@@ -4,7 +4,8 @@ import React, { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AdminDashboard } from '@/components/admin-dashboard'
-import { Lock, Shield, Activity, Users, FileText, TrendingUp } from 'lucide-react'
+import { AnalyticsDashboard } from '@/components/analytics-dashboard'
+import { Lock, Shield, Activity, Users, FileText, TrendingUp, BarChart3 } from 'lucide-react'
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -69,7 +70,8 @@ export default function AdminPage() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'feedback', label: 'Feedback', icon: Users },
-    { id: 'analytics', label: 'Analytics', icon: Activity },
+    { id: 'analytics', label: 'User Analytics', icon: BarChart3 },
+    { id: 'performance', label: 'Performance', icon: Activity },
     { id: 'papers', label: 'Papers', icon: FileText },
   ]
 
@@ -153,6 +155,12 @@ export default function AdminPage() {
           )}
 
           {activeTab === 'analytics' && (
+            <div>
+              <AnalyticsDashboard />
+            </div>
+          )}
+
+          {activeTab === 'performance' && (
             <Card>
               <CardHeader>
                 <CardTitle>System Performance</CardTitle>

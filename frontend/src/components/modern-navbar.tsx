@@ -26,21 +26,6 @@ export function Navbar() {
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-6">
-            <Link 
-              href="/"
-              className="flex items-center space-x-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Analyze</span>
-            </Link>
-            
-            <Link 
-              href="/admin"
-              className="flex items-center space-x-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Brain className="w-4 h-4" />
-              <span>Analytics</span>
-            </Link>
 
             <a 
               href="https://github.com/your-repo" 

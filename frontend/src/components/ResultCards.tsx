@@ -109,12 +109,12 @@ export default function ResultCards({ results }: ResultCardsProps) {
 
   return (
     <div className="space-y-8">
-      {/* Paper Metadata Card */}
+      {/* Paper Metadata Card with animation */}
       {results.metadata && (
-        <Card className="border-2 border-slate-300/20 bg-gradient-to-br from-background to-slate-50/50 dark:to-slate-950/20">
+        <Card className="border-2 border-slate-300/20 bg-gradient-to-br from-background to-slate-50/50 dark:to-slate-950/20 result-card-hover animate-fade-in-delayed opacity-0" style={{animationDelay: '0.1s'}}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-500 rounded-full animate-bounce-in" style={{animationDelay: '0.2s'}}></div>
               <span className="text-lg text-foreground">
                 {results.metadata.title}
               </span>
@@ -204,11 +204,11 @@ export default function ResultCards({ results }: ResultCardsProps) {
         </Card>
       )}
 
-      {/* Technical Analysis Card */}
-      <Card className="border-2 border-blue-300/20 bg-gradient-to-br from-background to-blue-50/50 dark:to-blue-950/20">
+      {/* Technical Analysis Card with animation */}
+      <Card className="border-2 border-blue-300/20 bg-gradient-to-br from-background to-blue-50/50 dark:to-blue-950/20 result-card-hover animate-fade-in-delayed opacity-0" style={{animationDelay: '0.3s'}}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce-in" style={{animationDelay: '0.4s'}}></div>
             Technical Analysis
           </CardTitle>
         </CardHeader>
@@ -294,13 +294,13 @@ export default function ResultCards({ results }: ResultCardsProps) {
         </CardContent>
       </Card>
 
-      {/* Two Main Cards */}
+      {/* Two Main Cards with staggered animation */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Card 1: Fun Take */}
-        <Card className="border-2 border-primary/20 bg-gradient-to-br from-background to-primary/5">
+        <Card className="border-2 border-primary/20 bg-gradient-to-br from-background to-primary/5 result-card-hover animate-slide-up opacity-0" style={{animationDelay: '0.5s'}}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-bounce-in" style={{animationDelay: '0.6s'}}></div>
               Fun Take & Analogies
             </CardTitle>
           </CardHeader>
@@ -333,11 +333,11 @@ export default function ResultCards({ results }: ResultCardsProps) {
         </Card>
 
         {/* Card 2: Friend's Take (Conversation Style) */}
-        <Card className="border-2 border-green-300/20 bg-gradient-to-br from-background to-green-50/50 dark:to-green-950/20">
+        <Card className="border-2 border-green-300/20 bg-gradient-to-br from-background to-green-50/50 dark:to-green-950/20 result-card-hover animate-slide-up opacity-0" style={{animationDelay: '0.7s'}}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              Friend's Take - Coffee Chat
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-bounce-in" style={{animationDelay: '0.8s'}}></div>
+              Friend&apos;s Take - Coffee Chat
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -22,10 +22,10 @@ export function NoveltyMeter({ score, className }: NoveltyMeterProps) {
   const percentage = Math.round(score * 100)
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-3 animate-bounce-in", className)}>
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Novelty Score</span>
-        <span className={cn("text-sm font-semibold", label.color)}>
+        <span className={cn("text-sm font-semibold animate-fade-in", label.color)} style={{animationDelay: '0.5s'}}>
           {label.text}
         </span>
       </div>
@@ -34,14 +34,17 @@ export function NoveltyMeter({ score, className }: NoveltyMeterProps) {
         <div className="w-full bg-secondary rounded-full h-2 relative overflow-hidden">
           <div
             className={cn(
-              "h-full rounded-full transition-all duration-700 ease-out",
+              "h-full rounded-full transition-all duration-1000 ease-out animate-pulse",
               getScoreColor(score)
             )}
-            style={{ width: `${percentage}%` }}
+            style={{ 
+              width: `${percentage}%`,
+              animationDelay: '0.3s'
+            }}
           />
         </div>
         
-        <div className="flex justify-between text-xs text-muted-foreground">
+        <div className="flex justify-between text-xs text-muted-foreground animate-fade-in" style={{animationDelay: '0.8s'}}>
           <span>0.0</span>
           <span className="font-medium">{score.toFixed(1)}</span>
           <span>1.0</span>

@@ -26,6 +26,8 @@ from app.api.dependencies import get_redis_client, rate_limit_check
 from app.services.pipeline_service import PipelineService
 from app.services.monitoring import MetricsCollector
 from app.utils import clean_response_for_json
+from app.api.analytics import router as analytics_router
+from app.core.database import init_db
 
 # Configure structured logging
 structlog.configure(
@@ -72,6 +74,21 @@ app.add_middleware(
 # Global services
 pipeline_service = PipelineService()
 metrics_collector = MetricsCollector()
+
+# Include analytics router
+app.include_router(analytics_router)
+
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    try:
+        # Initialize database tables
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        # Don't fail startup - we can still run without analytics
 
 # In-memory job storage (in production, use Redis or database)
 active_jobs: Dict[str, PipelineState] = {}
