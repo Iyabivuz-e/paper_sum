@@ -1,15 +1,24 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Navbar } from '@/components/modern-navbar';
-import { InputForm } from '@/components/input-form';
-import ResultCards from '@/components/ResultCards';
-import { NoveltyMeter } from '@/components/novelty-meter';
-import { FeedbackWidget } from '@/components/feedback-widget';
-import { Footer } from '@/components/footer';
-import { PrivacyAnalytics } from '@/components/cookie-consent';
-import { useAnalytics } from '@/lib/analytics';
-import { usePerformanceMonitor } from '@/lib/performance';
+import { InputForm } from '../components/input-form';
+import { NoveltyMeter } from '../components/novelty-meter';
+import ResultCards from '../components/ResultCards';
+import { FeedbackWidget } from '../components/feedback-widget';
+import { Navbar } from '../components/modern-navbar';
+import { PrivacyAnalytics } from '../components/cookie-consent';
+import { useAnalytics } from '../lib/analytics';
+import { usePerformanceMonitor } from '../lib/performance-fixed';
+import { Footer } from '../components/footer';
+// import { Navbar } from '@/components/modern-navbar';
+// import { InputForm } from '@/components/input-form';
+// import ResultCards from '@/components/ResultCards';
+// import { NoveltyMeter } from '@/components/novelty-meter';
+// import { FeedbackWidget } from '@/components/feedback-widget';
+// import { Footer } from '@/components/footer';
+// import { PrivacyAnalytics } from '@/components/cookie-consent';
+// import { useAnalytics } from '@/lib/analytics';
+// import { usePerformanceMonitor } from '@/lib/performance';
 
 interface PaperMetadata {
   title: string;

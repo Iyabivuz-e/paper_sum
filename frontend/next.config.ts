@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
+  // Fix workspace root detection
+  outputFileTracingRoot: __dirname,
 };
 
 export default nextConfig;
