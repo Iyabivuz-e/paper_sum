@@ -1,0 +1,62 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-py"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PaperFeedback {
+  id          String   @id @default(cuid())
+  rating      String   // 'positive' or 'negative'
+  comment     String?
+  paperTitle  String?
+  arxivId     String?
+  sessionId   String?
+  userAgent   String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("paper_feedback")
+}
+
+model PaperAnalytics {
+  id                  String   @id @default(cuid())
+  paperTitle         String?
+  arxivId            String?
+  processingTimeMs   Int?
+  tokensUsed         Int?
+  noveltyScore       Float?
+  sessionId          String?
+  userAgent          String?
+  ipAddress          String?
+  status             String   // 'completed', 'failed', 'timeout'
+  errorMessage       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("paper_analytics")
+}
+
+model UserSession {
+  id            String   @id @default(cuid())
+  sessionId     String   @unique
+  userAgent     String?
+  ipAddress     String?
+  papersAnalyzed Int     @default(0)
+  feedbackGiven  Int     @default(0)
+  firstVisit    DateTime @default(now())
+  lastActivity  DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("user_sessions")
+}
