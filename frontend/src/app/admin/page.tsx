@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { Button } from '../../components/ui/button'
-import { AdminDashboard } from '../../components/admin-dashboard'
-import { AnalyticsDashboard } from '../../components/analytics-dashboard'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { AdminDashboard } from '@/components/admin-dashboard'
+import { AnalyticsDashboard } from '@/components/analytics-dashboard'
 import { Lock, Shield, Activity, Users, FileText, TrendingUp, BarChart3 } from 'lucide-react'
 
 export default function AdminPage() {

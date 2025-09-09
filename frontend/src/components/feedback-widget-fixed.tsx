@@ -2,8 +2,8 @@
 
 import React, { useState } from "react"
 import { ThumbsUp, ThumbsDown, MessageSquare, Send, Coffee, Heart } from "lucide-react"
-import { Button } from "../components/ui/button"
-import { cn } from "../lib/utils"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface FeedbackWidgetProps {
   paperTitle?: string
