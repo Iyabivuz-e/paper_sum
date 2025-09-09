@@ -189,12 +189,22 @@ cython_debug/
 *.h5
 *.hdf5
 
-# Model checkpoints and weights
+# Model checkpoints and weights (ML models, not code models)
 checkpoints/
-models/
+*.h5
+*.pkl
+*.pickle
+*.joblib
+*.model
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.tflite
 weights/
 saved_models/
 model_outputs/
+ml_models/
 
 # Logs and monitoring
 logs/
