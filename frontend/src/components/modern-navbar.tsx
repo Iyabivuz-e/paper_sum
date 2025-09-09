@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { BookOpen, Brain, Github, Coffee } from 'lucide-react'
-import Link from 'next/link'
+import { Brain, Github, Coffee } from 'lucide-react'
 import { ThemeToggle } from "./theme-toggle"
 
 export function Navbar() {

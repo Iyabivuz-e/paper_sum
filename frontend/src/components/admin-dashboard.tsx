@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { BarChart3, TrendingUp, Users, MessageCircle, RefreshCw } from "lucide-react"
@@ -35,7 +35,7 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(false)
   const [days, setDays] = useState(30)
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true)
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001'
@@ -59,11 +59,11 @@ export function AdminDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [days])
 
   useEffect(() => {
     fetchAnalytics()
-  }, [days])
+  }, [days, fetchAnalytics])
 
   return (
     <div className="space-y-6 p-6">

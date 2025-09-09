@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Navbar } from '@/components/modern-navbar';
 import { InputForm } from '@/components/input-form';
 import ResultCards from '@/components/ResultCards';
@@ -41,10 +41,10 @@ export default function Home() {
 
   // Analytics and performance monitoring
   const analytics = useAnalytics();
-  const { trackAPICall, trackInteraction } = usePerformanceMonitor();
+  const { trackAPICall } = usePerformanceMonitor();
 
-  // Fun facts about AI and research
-  const funFacts = [
+  // Fun facts about AI and research (memoized to prevent unnecessary re-renders)
+  const funFacts = useMemo(() => [
     "🤖 Did you know? The average research paper takes 2-3 months to write, but AI can summarize it in minutes!",
     "📚 Fun fact: arXiv receives over 150,000 papers annually - that's about 400 papers every day!",
     "🧠 Amazing: The human brain processes visual information 60,000x faster than text - that's why we make analogies!",
@@ -55,7 +55,7 @@ export default function Home() {
     "📊 Did you know? 90% of all data was created in the last 2 years - AI helps us make sense of this explosion!",
     "🌟 Fun fact: The term 'peer review' was first used in 1967, but the practice dates back to 1731!",
     "🚀 Amazing: AI can now identify research trends before humans notice them in the data!"
-  ];
+  ], []);
 
   // Loading steps that match backend processing
   const loadingSteps = [
@@ -88,7 +88,7 @@ export default function Home() {
       
       return () => clearInterval(factInterval);
     }
-  }, [isLoading]);
+  }, [isLoading, funFacts]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -138,8 +138,8 @@ export default function Home() {
       });
       
       // Optional: Send to analytics service like Google Analytics, Mixpanel, etc.
-      if (typeof window !== 'undefined' && (window as any).gtag) {
-        (window as any).gtag('event', 'feedback_submitted', {
+      if (typeof window !== 'undefined' && (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag) {
+        (window as unknown as { gtag: (...args: unknown[]) => void }).gtag('event', 'feedback_submitted', {
           feedback_rating: feedback.rating,
           paper_title: feedback.paperInfo.title,
           arxiv_id: feedback.paperInfo.arxivId
@@ -270,8 +270,9 @@ export default function Home() {
           };
           
           // Track successful completion
+          const endTime = performance.now();
           analytics.summaryGenerated(processingTime, results.noveltyScore);
-          trackAPICall('/api/summarize', processingTime, 200);
+          trackAPICall('/api/summarize', startTime, endTime, 200);
           
           setResults(results);
           setIsLoading(false);
@@ -290,8 +291,9 @@ export default function Home() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to process the paper. Please try again.';
       
       // Track error analytics
+      const endTime = performance.now();
       analytics.summaryFailed(err instanceof Error ? err.name : 'unknown_error');
-      trackAPICall('/api/summarize', performance.now() - startTime, 500);
+      trackAPICall('/api/summarize', startTime, endTime, 500);
       
       setError(errorMessage);
     } finally {

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Upload, Send, Loader2 } from "lucide-react"
+import { Send, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface InputFormProps {
@@ -11,7 +11,6 @@ interface InputFormProps {
 
 export function InputForm({ onSubmit, isLoading }: InputFormProps) {
   const [input, setInput] = useState("")
-  const [dragActive, setDragActive] = useState(false)
 
   // Function to parse different input formats
   const parseInput = (inputText: string) => {
@@ -49,32 +48,6 @@ export function InputForm({ onSubmit, isLoading }: InputFormProps) {
       const parsedInput = parseInput(input.trim());
       onSubmit(parsedInput);
       setInput("")
-    }
-  }
-
-  const handleFileUpload = (file: File) => {
-    if (file.type === "application/pdf") {
-      onSubmit({ pdfFile: file })
-    }
-  }
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
-    } else if (e.type === "dragleave") {
-      setDragActive(false)
-    }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files[0])
     }
   }
 
@@ -140,7 +113,9 @@ export function InputForm({ onSubmit, isLoading }: InputFormProps) {
           )}
         >
           <div className="space-y-2">
-            <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+            <div className="h-8 w-8 mx-auto bg-muted-foreground/20 rounded-lg flex items-center justify-center">
+              <span className="text-xs">📄</span>
+            </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">PDF Upload - Coming Soon</p>
               <p className="text-xs text-muted-foreground">
