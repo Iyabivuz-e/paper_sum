@@ -1,4 +1,4 @@
-# Dockerfile for AI Paper Summarizer Backend Production Deployment
+# Alternative Dockerfile using pip (backup for Render deployment)
 FROM python:3.11-slim
 
 # Set working directory
@@ -13,17 +13,17 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Install UV package manager
+# Copy requirements
+COPY requirements.txt ./
+
+# Install psycopg2-binary first to avoid any compilation issues
+RUN pip install --no-cache-dir psycopg2-binary==2.9.10
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install UV for Prisma (if needed)
 RUN pip install uv
-
-# Copy dependency files and README
-COPY pyproject.toml uv.lock README.md ./
-
-# Explicitly install psycopg2-binary first to avoid compilation issues
-RUN uv pip install --system psycopg2-binary==2.9.10
-
-# Install dependencies (no need for editable install in production)
-RUN uv sync --no-dev --no-editable
 
 # Copy application code
 COPY . .
@@ -35,11 +35,11 @@ RUN uv run prisma generate
 RUN mkdir -p outputs research_papers db logs
 
 # Expose port
-EXPOSE 8001
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8001}/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Run the application with dynamic port
-CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

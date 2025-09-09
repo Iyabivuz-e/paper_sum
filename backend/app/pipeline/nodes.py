@@ -308,7 +308,9 @@ class ProductionPipelineNodes:
             state["chunk_ids"] = chunk_ids
             
             # Retrieve relevant context for processing
-            query = f"{state["paper_metadata"].get('title', '')} {state["paper_metadata"].get('abstract', '')}"
+            title = state["paper_metadata"].get('title', '')
+            abstract = state["paper_metadata"].get('abstract', '')
+            query = f"{title} {abstract}"
             retrieved_docs = self.vector_store.similarity_search(query, k=5)
             state["retrieved_context"] = [doc.page_content for doc in retrieved_docs]
             

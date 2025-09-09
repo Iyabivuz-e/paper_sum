@@ -174,6 +174,14 @@ export default function Home() {
       // Call the actual backend API
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
       
+      // Check if backend is available (for production deployment)
+      const isProduction = process.env.NODE_ENV === 'production';
+      const isLocalhost = backendUrl.includes('localhost');
+      
+      if (isProduction && isLocalhost) {
+        throw new Error('Backend service is not properly configured for production. Please set NEXT_PUBLIC_BACKEND_URL environment variable.');
+      }
+      
       let submitResponse;
       
       if (data.pdfFile) {

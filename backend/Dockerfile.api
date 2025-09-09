@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    libpq-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV package manager
@@ -16,6 +18,9 @@ RUN pip install uv
 
 # Copy dependency files and README
 COPY pyproject.toml uv.lock README.md ./
+
+# Explicitly install psycopg2-binary first to avoid compilation issues
+RUN uv pip install --system psycopg2-binary==2.9.10
 
 # Install dependencies (no need for editable install in production)
 RUN uv sync --no-dev --no-editable
