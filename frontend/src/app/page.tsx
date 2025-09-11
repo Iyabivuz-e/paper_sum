@@ -137,14 +137,7 @@ export default function Home() {
         }),
       });
       
-      // Optional: Send to analytics service like Google Analytics, Mixpanel, etc.
-      if (typeof window !== 'undefined' && (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag) {
-        (window as unknown as { gtag: (...args: unknown[]) => void }).gtag('event', 'feedback_submitted', {
-          feedback_rating: feedback.rating,
-          paper_title: feedback.paperInfo.title,
-          arxiv_id: feedback.paperInfo.arxivId
-        });
-      }
+      // Analytics tracking handled automatically by Vercel Analytics
     } catch (error) {
       console.error('Failed to submit feedback:', error);
       // Still show success to user even if backend fails
