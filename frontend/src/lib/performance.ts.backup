@@ -1,0 +1,221 @@
+'use client';
+
+import { useEffect, useCallback } from 'react';
+import { analytics } from './analytics';
+// Performance monitoring class
+class PerformanceMonitor {
+  private navigationStart: number;
+  private observers: PerformanceObserver[] = [];
+
+  constructor() {
+    this.navigationStart = performance.timeOrigin;
+    this.initializeObservers();
+  }
+
+  // Initialize performance observers
+  private initializeObservers() {
+    // Core Web Vitals
+    this.observeWebVitals();
+    
+    // Resource loading
+    this.observeResources();
+    
+    // Long tasks
+    this.observeLongTasks();
+  }
+
+  // Core Web Vitals monitoring
+  private observeWebVitals() {
+    // Largest Contentful Paint (LCP)
+    if ('PerformanceObserver' in window) {
+      const lcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const lastEntry = entries[entries.length - 1] as PerformanceEntry & { startTime: number };
+        const lcp = lastEntry.startTime;
+        
+        analytics.trackEvent('core_web_vital', 'performance', 'LCP', Math.round(lcp));
+        
+        if (lcp > 2500) {
+          analytics.slowLoading(lcp, 'LCP');
+        }
+      });
+      
+      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+      this.observers.push(lcpObserver);
+    }
+
+    // First Input Delay (FID)
+    if ('PerformanceObserver' in window) {
+      const fidObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry) => {
+          const fidEntry = entry as PerformanceEntry & { processingStart?: number; startTime: number };
+          if (fidEntry.processingStart) {
+            const fid = fidEntry.processingStart - fidEntry.startTime;
+            analytics.trackEvent('core_web_vital', 'performance', 'FID', Math.round(fid));
+            
+            if (fid > 100) {
+              analytics.slowLoading(fid, 'FID');
+            }
+          }
+        });
+      });
+      
+      fidObserver.observe({ entryTypes: ['first-input'] });
+      this.observers.push(fidObserver);
+    }
+
+    // Cumulative Layout Shift (CLS) - via Layout Shift API
+    if ('PerformanceObserver' in window) {
+      let clsValue = 0;
+      const clsObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry) => {
+          const clsEntry = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+          if (!clsEntry.hadRecentInput && clsEntry.value) {
+            clsValue += clsEntry.value;
+          }
+        });
+        
+        analytics.trackEvent('core_web_vital', 'performance', 'CLS', Math.round(clsValue * 1000));
+      });
+      
+      clsObserver.observe({ entryTypes: ['layout-shift'] });
+      this.observers.push(clsObserver);
+    }
+  }
+
+  // Resource loading monitoring
+  private observeResources() {
+    if ('PerformanceObserver' in window) {
+      const resourceObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          // Track slow resources
+          if (entry.duration > 1000) {
+            analytics.trackEvent('slow_resource', 'performance', entry.name, Math.round(entry.duration));
+          }
+          
+          // Track resource types
+          if (entry.initiatorType) {
+            analytics.trackEvent('resource_loaded', 'performance', entry.initiatorType, Math.round(entry.duration));
+          }
+        });
+      });
+      
+      resourceObserver.observe({ entryTypes: ['resource'] });
+      this.observers.push(resourceObserver);
+    }
+  }
+
+  // Long task monitoring
+  private observeLongTasks() {
+    if ('PerformanceObserver' in window) {
+      const longTaskObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        entries.forEach((entry: any) => {
+          analytics.trackEvent('long_task', 'performance', 'blocking_time', Math.round(entry.duration));
+        });
+      });
+      
+      try {
+        longTaskObserver.observe({ entryTypes: ['longtask'] });
+        this.observers.push(longTaskObserver);
+      } catch (e) {
+        // longtask not supported in all browsers
+      }
+    }
+  }
+
+  // Track API performance
+  trackAPICall(endpoint: string, duration: number, status: number) {
+    analytics.trackEvent('api_call', 'performance', endpoint, duration);
+    
+    if (status >= 400) {
+      analytics.error('api_error', endpoint, `status_${status}`);
+    }
+    
+    if (duration > 5000) {
+      analytics.slowLoading(duration, `api_${endpoint}`);
+    }
+  }
+
+  // Track user interactions
+  trackInteraction(action: string, element: string, duration?: number) {
+    analytics.trackEvent('user_interaction', 'engagement', `${action}_${element}`, duration);
+  }
+
+  // Memory usage monitoring
+  trackMemoryUsage() {
+    if ('memory' in performance) {
+      const memory = (performance as any).memory;
+      analytics.trackEvent('memory_usage', 'performance', 'used', Math.round(memory.usedJSHeapSize / 1024 / 1024));
+    }
+  }
+
+  // Cleanup observers
+  disconnect() {
+    this.observers.forEach(observer => observer.disconnect());
+    this.observers = [];
+  }
+}
+
+// React hook for performance monitoring
+export const usePerformanceMonitor = () => {
+  useEffect(() => {
+    const monitor = new PerformanceMonitor();
+    
+    // Track page load time
+    window.addEventListener('load', () => {
+      const loadTime = performance.now();
+      analytics.trackEvent('page_load', 'performance', 'complete', Math.round(loadTime));
+      
+      if (loadTime > 3000) {
+        analytics.slowLoading(loadTime, 'page_load');
+      }
+    });
+
+    // Track memory usage periodically
+    const memoryInterval = setInterval(() => {
+      monitor.trackMemoryUsage();
+    }, 30000); // Every 30 seconds
+
+    return () => {
+      monitor.disconnect();
+      clearInterval(memoryInterval);
+    };
+  }, []);
+
+  // Return tracking functions for component use
+  return {
+    trackAPICall: useCallback((endpoint: string, duration: number, status: number) => {
+      const monitor = new PerformanceMonitor();
+      monitor.trackAPICall(endpoint, duration, status);
+    }, []),
+    
+    trackInteraction: useCallback((action: string, element: string, duration?: number) => {
+      const monitor = new PerformanceMonitor();
+      monitor.trackInteraction(action, element, duration);
+    }, [])
+  };
+};
+
+// Error boundary for tracking JavaScript errors
+export class ErrorTracker {
+  static init() {
+    // Global error handler
+    window.addEventListener('error', (event) => {
+      analytics.error('javascript_error', window.location.pathname, event.message);
+    });
+
+    // Promise rejection handler
+    window.addEventListener('unhandledrejection', (event) => {
+      analytics.error('promise_rejection', window.location.pathname, event.reason);
+    });
+  }
+
+  // React error boundary helper
+  static logError(error: Error, errorInfo: any) {
+    analytics.error('react_error', window.location.pathname, error.message);
+  }
+}
