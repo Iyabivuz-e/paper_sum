@@ -12,17 +12,13 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "https://research-paper-summary-backend.onrender.com",
-    "NEXT_PUBLIC_GA_MEASUREMENT_ID": "@ga_measurement_id",
-    "NEXT_PUBLIC_ANALYTICS_ENABLED": "true",
+    "NEXT_PUBLIC_BACKEND_URL": "https://paper-sum-1.onrender.com",
     "NEXT_PUBLIC_APP_NAME": "Paper Summarizer",
     "NEXT_PUBLIC_APP_VERSION": "1.0.0"
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_BACKEND_URL": "@backend_url",
-      "NEXT_PUBLIC_GA_MEASUREMENT_ID": "@ga_measurement_id",
-      "NEXT_PUBLIC_ANALYTICS_ENABLED": "true"
+      "NEXT_PUBLIC_BACKEND_URL": "@backend_url"
     }
   },
   "functions": {
