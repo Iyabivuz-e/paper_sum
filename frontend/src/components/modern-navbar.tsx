@@ -37,7 +37,7 @@ export function Navbar() {
             </a>
 
             <a 
-              href="https://buymeacoffee.com/yourname" 
+              href="https://buymeacoffee.com/Iyabivuze" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center space-x-1 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-yellow-900 text-sm font-medium rounded-full transition-colors"
@@ -53,7 +53,7 @@ export function Navbar() {
           {/* Mobile Menu */}
           <div className="md:hidden flex items-center space-x-2">
             <a 
-              href="https://buymeacoffee.com/yourname" 
+              href="https://buymeacoffee.com/Iyabivuze" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center space-x-1 p-2 bg-yellow-500 hover:bg-yellow-600 text-yellow-900 rounded-full transition-colors"

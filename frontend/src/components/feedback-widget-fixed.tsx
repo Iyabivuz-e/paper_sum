@@ -78,7 +78,7 @@ export function FeedbackWidget({ paperTitle, arxivId, onFeedbackSubmit }: Feedba
               Enjoyed the explanation? Consider supporting the project! ☕
             </p>
             <a
-              href="https://buymeacoffee.com/yourname"
+              href="https://buymeacoffee.com/Iyabivuze"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-yellow-900 font-medium rounded-full transition-colors"

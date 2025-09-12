@@ -51,7 +51,7 @@ export function Footer() {
             <h3 className="text-lg font-semibold text-foreground">Support the Project</h3>
             <div className="space-y-3">
               <a
-                href="https://buymeacoffee.com/yourname"
+                href="https://buymeacoffee.com/Iyabivuze"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-yellow-900 font-medium rounded-full transition-colors text-sm"
