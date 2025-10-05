@@ -6,7 +6,7 @@ from typing import TypedDict, List, Optional, Dict, Any
 from datetime import datetime
 import uuid
 
-from models.schemas import ProcessingStatus, ProcessingStep
+from app.models.schemas import ProcessingStatus, ProcessingStep
 
 
 class PipelineState(TypedDict):

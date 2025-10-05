@@ -19,9 +19,9 @@ import structlog
 import asyncio
 from datetime import datetime
 
-from core.config import settings
-from models.schemas import ProcessingStatus, PaperProcessResponse, ProcessingStep
-from pipeline.state import PipelineState
+from app.core.config import settings
+from app.models.schemas import ProcessingStatus, PaperProcessResponse, ProcessingStep
+from app.pipeline.state import PipelineState
 
 logger = structlog.get_logger()
 
@@ -38,7 +38,7 @@ class ProductionPipelineNodes:
             # Use only the specific Groq model: openai/gpt-oss-20b
             self.llm = ChatGroq(
                 model="openai/gpt-oss-120b",
-                api_key=settings.groq_api_key,
+                api_key=str(settings.groq_api_key),  # type: ignore
                 temperature=0.7
             )
             logger.info("Using Groq LLM: openai/gpt-oss-20b")
@@ -247,7 +247,7 @@ class ProductionPipelineNodes:
             doc = fitz.open(state["pdf_path"])
             content = ""
             
-            for page_num, page in enumerate(doc):
+            for page_num, page in enumerate(doc):  # type: ignore
                 blocks = page.get_text("blocks")
                 # Sort blocks by vertical position for reading order
                 blocks.sort(key=lambda b: b[1])
@@ -380,16 +380,16 @@ class ProductionPipelineNodes:
                 "context": context
             })
             
-            state["serious_summary"] = serious_response.content
+            state["serious_summary"] = str(serious_response.content)
             
             # Generate contextual analysis
             context_chain = context_prompt | self.llm
             context_response = await context_chain.ainvoke({
                 "title": title,
-                "summary": serious_response.content
+                "summary": str(serious_response.content)
             })
             
-            state["contextual_analysis"] = context_response.content
+            state["contextual_analysis"] = str(context_response.content)
             state["status"] = ProcessingStatus.NOVELTY_ANALYSIS
             await self._log_step_complete(state, step_name)
             
@@ -448,7 +448,7 @@ class ProductionPipelineNodes:
             })
             
             # Extract novelty score (simple parsing - could be more sophisticated)
-            novelty_text = novelty_response.content
+            novelty_text = str(novelty_response.content)
             try:
                 # Look for "Overall Novelty Score: X.X" pattern
                 import re
@@ -538,7 +538,7 @@ class ProductionPipelineNodes:
                 "user_query": state["user_query"] or "general explanation"
             })
             
-            state["human_fun_summary"] = fun_response.content
+            state["human_fun_summary"] = str(fun_response.content)
             state["status"] = ProcessingStatus.SYNTHESIZING
             await self._log_step_complete(state, step_name)
             
@@ -612,7 +612,7 @@ class ProductionPipelineNodes:
                 "human_fun_summary": state["human_fun_summary"]
             })
             
-            content = synthesis_response.content
+            content = str(synthesis_response.content)
             
             # Parse the response to extract different formats
             # Extract Friend's Take conversation (everything before Twitter thread)
@@ -677,7 +677,7 @@ class ProductionPipelineNodes:
         return state
 
 
-def create_production_pipeline() -> StateGraph:
+def create_production_pipeline():
     """Create the production LangGraph pipeline"""
     
     nodes = ProductionPipelineNodes()
@@ -702,4 +702,4 @@ def create_production_pipeline() -> StateGraph:
     workflow.add_edge("fun", "output")
     workflow.add_edge("output", END)
     
-    return workflow.compile()
+    return workflow.compile()  # type: ignore

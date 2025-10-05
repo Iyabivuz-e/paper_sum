@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
 from sqlalchemy.orm import Session
-from core.database import get_db
-from models.analytics import AnalyticsEvent, UserSession
+from app.core.database import get_db
+from app.models.analytics import AnalyticsEvent, UserSession
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -86,18 +86,18 @@ def get_daily_users(events: List[AnalyticsEvent]) -> int:
     """Count unique users in the time period"""
     unique_users = set()
     for event in events:
-        if event.user_id:
-            unique_users.add(event.user_id)
-        elif event.session_id:
-            unique_users.add(event.session_id)
+        if event.user_id:  # type: ignore
+            unique_users.add(event.user_id)  # type: ignore
+        elif event.session_id:  # type: ignore
+            unique_users.add(event.session_id)  # type: ignore
     return len(unique_users)
 
 def get_total_sessions(events: List[AnalyticsEvent]) -> int:
     """Count total sessions"""
     unique_sessions = set()
     for event in events:
-        if event.session_id:
-            unique_sessions.add(event.session_id)
+        if event.session_id:  # type: ignore
+            unique_sessions.add(event.session_id)  # type: ignore
     return len(unique_sessions)
 
 def get_average_session_time(events: List[AnalyticsEvent]) -> str:
@@ -105,8 +105,8 @@ def get_average_session_time(events: List[AnalyticsEvent]) -> str:
     session_times = {}
     
     for event in events:
-        if event.session_id:
-            if event.session_id not in session_times:
+        if event.session_id:  # type: ignore
+            if event.session_id not in session_times:  # type: ignore
                 session_times[event.session_id] = {"start": event.timestamp, "end": event.timestamp}
             else:
                 if event.timestamp < session_times[event.session_id]["start"]:
@@ -139,9 +139,9 @@ def get_top_countries(events: List[AnalyticsEvent]) -> List[Dict]:
     for event in events:
         # You'd use a GeoIP service here to get country from IP
         # For demo, we'll extract from event_data if available
-        if event.event_data:
+        if event.event_data:  # type: ignore
             try:
-                event_metadata = json.loads(event.event_data)
+                event_metadata = json.loads(str(event.event_data))  # type: ignore
                 country = event_metadata.get("country", "Unknown")
                 countries[country] = countries.get(country, 0) + 1
             except:
@@ -155,8 +155,8 @@ def get_device_types(events: List[AnalyticsEvent]) -> List[Dict]:
     devices = {"Desktop": 0, "Mobile": 0, "Tablet": 0}
     
     for event in events:
-        if event.user_agent:
-            user_agent = event.user_agent.lower()
+        if event.user_agent:  # type: ignore
+            user_agent = str(event.user_agent).lower()  # type: ignore
             if "mobile" in user_agent or "android" in user_agent or "iphone" in user_agent:
                 devices["Mobile"] += 1
             elif "tablet" in user_agent or "ipad" in user_agent:
@@ -174,15 +174,15 @@ def get_popular_pages(events: List[AnalyticsEvent]) -> List[Dict]:
     """Get most visited pages"""
     pages = {}
     for event in events:
-        if event.page_path and event.event_type == "page_view":
-            pages[event.page_path] = pages.get(event.page_path, 0) + 1
+        if event.page_path and event.event_type == "page_view":  # type: ignore
+            pages[event.page_path] = pages.get(event.page_path, 0) + 1  # type: ignore
     
     return [{"page": k, "views": v} for k, v in sorted(pages.items(), key=lambda x: x[1], reverse=True)[:10]]
 
 def get_conversion_rate(events: List[AnalyticsEvent]) -> float:
     """Calculate upload to success conversion rate"""
-    uploads = len([e for e in events if e.event_action == "paper_upload"])
-    successes = len([e for e in events if e.event_action == "summary_generated"])
+    uploads = len([e for e in events if e.event_action == "paper_upload"])  # type: ignore
+    successes = len([e for e in events if e.event_action == "summary_generated"])  # type: ignore
     
     if uploads == 0:
         return 0.0
@@ -191,8 +191,8 @@ def get_conversion_rate(events: List[AnalyticsEvent]) -> float:
 
 def get_error_rate(events: List[AnalyticsEvent]) -> float:
     """Calculate error rate"""
-    total_requests = len([e for e in events if e.event_category in ["api_call", "paper_processing"]])
-    errors = len([e for e in events if e.event_category == "error"])
+    total_requests = len([e for e in events if e.event_category in ["api_call", "paper_processing"]])  # type: ignore
+    errors = len([e for e in events if e.event_category == "error"])  # type: ignore
     
     if total_requests == 0:
         return 0.0
@@ -203,8 +203,8 @@ def get_average_load_time(events: List[AnalyticsEvent]) -> float:
     """Calculate average page load time"""
     load_times = []
     for event in events:
-        if event.event_action == "page_load" and event.event_value:
-            load_times.append(event.event_value)
+        if event.event_action == "page_load" and event.event_value:  # type: ignore
+            load_times.append(float(event.event_value))  # type: ignore
     
     if not load_times:
         return 0.0
@@ -213,20 +213,20 @@ def get_average_load_time(events: List[AnalyticsEvent]) -> float:
 
 def get_paper_uploads(events: List[AnalyticsEvent]) -> int:
     """Count paper uploads"""
-    return len([e for e in events if e.event_action == "paper_upload"])
+    return len([e for e in events if e.event_action == "paper_upload"])  # type: ignore
 
 def get_coffee_clicks(events: List[AnalyticsEvent]) -> int:
     """Count coffee button clicks"""
-    return len([e for e in events if e.event_action == "coffee_support"])
+    return len([e for e in events if e.event_action == "coffee_support"])  # type: ignore
 
 def get_feedback_data(events: List[AnalyticsEvent]) -> Dict:
     """Analyze feedback data"""
-    feedback_events = [e for e in events if e.event_action == "feedback_submitted"]
+    feedback_events = [e for e in events if e.event_action == "feedback_submitted"]  # type: ignore
     
     if not feedback_events:
         return {"average_rating": 0, "total_feedback": 0}
     
-    ratings = [e.event_value for e in feedback_events if e.event_value]
+    ratings = [float(e.event_value) for e in feedback_events if e.event_value]  # type: ignore
     
     return {
         "average_rating": round(sum(ratings) / len(ratings), 1) if ratings else 0,
@@ -243,8 +243,8 @@ def get_real_time_users(db: Session) -> int:
     
     unique_users = set()
     for event in recent_events:
-        if event.session_id:
-            unique_users.add(event.session_id)
+        if event.session_id:  # type: ignore
+            unique_users.add(event.session_id)  # type: ignore
     
     return len(unique_users)
 
@@ -261,11 +261,11 @@ def get_hourly_data(events: List[AnalyticsEvent]) -> List[Dict]:
 def get_conversion_funnel(events: List[AnalyticsEvent]) -> Dict:
     """Track conversion funnel steps"""
     funnel_steps = {
-        "visits": len([e for e in events if e.event_type == "page_view"]),
-        "uploads": len([e for e in events if e.event_action == "paper_upload"]),
-        "processing": len([e for e in events if e.event_action == "processing_started"]),
-        "completed": len([e for e in events if e.event_action == "summary_generated"]),
-        "downloaded": len([e for e in events if e.event_action == "content_download"])
+        "visits": len([e for e in events if e.event_type == "page_view"]),  # type: ignore
+        "uploads": len([e for e in events if e.event_action == "paper_upload"]),  # type: ignore
+        "processing": len([e for e in events if e.event_action == "processing_started"]),  # type: ignore
+        "completed": len([e for e in events if e.event_action == "summary_generated"]),  # type: ignore
+        "downloaded": len([e for e in events if e.event_action == "content_download"])  # type: ignore
     }
     
     return funnel_steps

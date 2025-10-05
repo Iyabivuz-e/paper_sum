@@ -27,7 +27,7 @@ export function Navbar() {
           <div className="hidden md:flex items-center space-x-6">
 
             <a 
-              href="https://github.com/your-repo" 
+              href="https://github.com/Iyabivuz-e/paper_sum" 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center space-x-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"

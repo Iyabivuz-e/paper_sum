@@ -8,7 +8,7 @@ import time
 from typing import Optional
 import structlog
 
-from core.config import settings
+from app.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -35,7 +35,7 @@ def get_redis_client() -> Optional[redis.Redis]:
 # Rate limiting
 async def rate_limit_check(request: Request):
     """Rate limiting check"""
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
     redis_conn = get_redis_client()
     
     if not redis_conn:

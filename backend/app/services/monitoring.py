@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 import structlog
 
-from models.schemas import SystemMetrics
+from app.models.schemas import SystemMetrics
 
 logger = structlog.get_logger()
 

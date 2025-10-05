@@ -84,6 +84,75 @@ export function formatText(text: string): React.ReactNode {
 function formatInlineText(text: string): React.ReactNode {
   if (!text) return null;
 
+  // First, handle LaTeX math expressions - support multiline with [\s\S]
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  
+  // Match both inline math \(...\) and display math \[...\] (including multiline)
+  // [\s\S] matches any character including newlines
+  const mathRegex = /\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
+  let match;
+  let matchCount = 0;
+  
+  while ((match = mathRegex.exec(text)) !== null) {
+    // Add text before the math
+    if (match.index > lastIndex) {
+      const textBefore = text.substring(lastIndex, match.index);
+      parts.push(<React.Fragment key={`text-${matchCount}`}>{formatNonMathText(textBefore)}</React.Fragment>);
+    }
+    
+    // Add the math expression
+    const mathContent = match[1] || match[2];
+    const isDisplayMode = !!match[2];
+    
+    try {
+      // Use dynamic import to avoid SSR issues
+      if (typeof window !== 'undefined') {
+        const katex = require('katex');
+        const html = katex.renderToString(mathContent, {
+          displayMode: isDisplayMode,
+          throwOnError: false,
+          output: 'html',
+        });
+        parts.push(
+          <span 
+            key={`math-${matchCount}`}
+            className={isDisplayMode ? 'block my-2' : 'inline-block mx-1'}
+            dangerouslySetInnerHTML={{ __html: html }} 
+          />
+        );
+      } else {
+        // Fallback for SSR
+        parts.push(
+          <code key={`math-${matchCount}`} className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono">
+            {mathContent}
+          </code>
+        );
+      }
+    } catch (err) {
+      // If rendering fails, show as code
+      parts.push(
+        <code key={`math-error-${matchCount}`} className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono">
+          {mathContent}
+        </code>
+      );
+    }
+    
+    lastIndex = match.index + match[0].length;
+    matchCount++;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(<React.Fragment key={`text-final-${matchCount}`}>{formatNonMathText(text.substring(lastIndex))}</React.Fragment>);
+  }
+  
+  return parts.length > 0 ? <>{parts}</> : formatNonMathText(text);
+}
+
+function formatNonMathText(text: string): React.ReactNode {
+  if (!text) return null;
+
   let processedText = text;
   
   // Handle bold text (**text** or __text__) - process these first
@@ -177,17 +246,21 @@ export function formatChatText(text: string): React.ReactNode {
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                 isProfessor 
                   ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
-                  : 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                  : 'bg-green-200 dark:bg-green-900 text-green-900 dark:text-green-200'
               }`}>
                 {speaker[0]}
               </div>
               <div className={`p-4 rounded-lg min-w-0 flex-1 ${
                 isProfessor
                   ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800'
-                  : 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800'
+                  : 'bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800'
               }`}>
                 <div className="font-semibold text-sm mb-2 text-gray-900 dark:text-gray-100">{speaker}</div>
-                <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{formatInlineText(message)}</div>
+                <div className={`text-sm leading-relaxed ${
+                  isProfessor 
+                    ? 'text-gray-700 dark:text-gray-300'
+                    : 'text-gray-900 dark:text-gray-200'
+                }`}>{formatInlineText(message)}</div>
               </div>
             </div>
           </div>

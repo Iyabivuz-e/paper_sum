@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean
-from core.database import Base
+from app.core.database import Base
 from datetime import datetime
 
 class AnalyticsEvent(Base):

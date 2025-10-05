@@ -10,14 +10,14 @@ from pathlib import Path
 import structlog
 import time
 
-from models.schemas import (
+from app.models.schemas import (
     PaperProcessRequest, PaperProcessResponse, BatchProcessRequest, 
     BatchProcessResponse, ProcessingStatus, PaperMetadata, PaperAnalysisResult
 )
-from pipeline.nodes import create_production_pipeline
-from pipeline.state import create_initial_state, PipelineState
-from core.config import settings
-from services.database_service import db_service
+from app.pipeline.nodes import create_production_pipeline
+from app.pipeline.state import create_initial_state, PipelineState
+from app.core.config import settings
+from app.services.database_service import db_service
 
 logger = structlog.get_logger()
 
@@ -74,6 +74,9 @@ class PipelineService:
     
     async def process_paper_async(self, job_id: str, request: PaperProcessRequest):
         """Process paper asynchronously"""
+        # Initialize start_time at function scope to avoid unbound errors
+        start_time: float = time.time()
+        
         try:
             # Check if job exists
             if job_id not in self.jobs:
@@ -84,17 +87,14 @@ class PipelineService:
             
             logger.info("Starting paper processing", job_id=job_id)
             
-            # Record start time for analytics
-            start_time = time.time()
-            
             # Run the pipeline
-            result_state = await self.pipeline.ainvoke(state)
+            result_state = await self.pipeline.ainvoke(state)  # type: ignore
             
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
             
             # Update stored state
-            self.jobs[job_id] = result_state
+            self.jobs[job_id] = result_state  # type: ignore
             
             # Log analytics to database
             try:
@@ -120,9 +120,10 @@ class PipelineService:
         except Exception as e:
             logger.error("Paper processing failed", job_id=job_id, error=str(e))
             
-            # Log failed analytics
+            # Log failed analytics - start_time is always defined at function scope
+            processing_time_ms: Optional[int] = int((time.time() - start_time) * 1000)
+            
             try:
-                processing_time_ms = int((time.time() - start_time) * 1000) if 'start_time' in locals() else None
                 await db_service.log_paper_analytics(
                     paper_title=request.arxiv_id if hasattr(request, 'arxiv_id') else None,
                     arxiv_id=request.arxiv_id if hasattr(request, 'arxiv_id') else None,
@@ -146,7 +147,7 @@ class PipelineService:
             
             for paper_request in request.papers:
                 job_response = await self.create_job(paper_request)
-                paper_jobs.append(job_response.job_id)
+                paper_jobs.append(job_response["job_id"])  # job_response is Dict[str, Any]
             
             batch_response = BatchProcessResponse(
                 batch_name=request.batch_name,
@@ -180,8 +181,8 @@ class PipelineService:
                     {
                         "step_name": getattr(step, 'step_name', ''),
                         "status": getattr(step, 'status', ''),
-                        "started_at": getattr(step, 'started_at', None).isoformat() if getattr(step, 'started_at', None) else None,
-                        "completed_at": getattr(step, 'completed_at', None).isoformat() if getattr(step, 'completed_at', None) else None,
+                        "started_at": (started := getattr(step, 'started_at', None)) and started.isoformat(),
+                        "completed_at": (completed := getattr(step, 'completed_at', None)) and completed.isoformat(),
                         "duration_seconds": getattr(step, 'duration_seconds', None),
                         "error_message": getattr(step, 'error_message', None),
                         "metadata": getattr(step, 'metadata', {})
